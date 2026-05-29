@@ -1,0 +1,96 @@
+{
+  "scenario_id": "queen_st_active",
+  "description": "Active watermain replacement on Queen St W disrupts 501 streetcar. Utility crew, road closure, and TTC diversion all filed separately — no coordination. All 4 events within 55 minutes.",
+  "events": [
+    {
+      "event_id": "uc-queen-2026-001",
+      "source": "utility_cuts",
+      "event_type": "utility_work",
+      "latitude": 43.6488,
+      "longitude": -79.4285,
+      "address": "Queen St W & Roncesvalles Ave, Toronto, ON",
+      "description": "Watermain replacement — Toronto Water permit UC-2026-0412. Full road closure required.",
+      "severity_raw": 3,
+      "timestamp": "2026-05-28T08:00:00+00:00",
+      "source_id": "UC-2026-0412",
+      "metadata": {"client_name": "Toronto Water", "status": "Active"}
+    },
+    {
+      "event_id": "311-queen-2026-001",
+      "source": "requests_311",
+      "event_type": "watermain_break",
+      "latitude": 43.6487,
+      "longitude": -79.4284,
+      "address": "Queen St W & Roncesvalles Ave, Toronto, ON",
+      "description": "Watermain-Possible Break — water flowing from pavement near Roncesvalles",
+      "severity_raw": 3,
+      "timestamp": "2026-05-28T08:35:00+00:00",
+      "source_id": "311-2026-44201",
+      "metadata": {"ward": "4", "status": "Open"}
+    },
+    {
+      "event_id": "rr-queen-2026-001",
+      "source": "road_restrictions",
+      "event_type": "road_closure",
+      "latitude": 43.6490,
+      "longitude": -79.4282,
+      "address": "Queen St W between Roncesvalles Ave and Beaty Ave",
+      "description": "Emergency road closure — watermain replacement in progress. Both lanes closed.",
+      "severity_raw": 3,
+      "timestamp": "2026-05-28T08:55:00+00:00",
+      "source_id": "RR-2026-09987",
+      "metadata": {"contractor": "Toronto Water Services"}
+    },
+    {
+      "event_id": "ttc-queen-2026-001",
+      "source": "ttc_alerts",
+      "event_type": "transit_disruption",
+      "latitude": 43.6490,
+      "longitude": -79.4278,
+      "address": "Queen St W — 501 Streetcar route (Roncesvalles diversion)",
+      "description": "Route 501 Queen: Short-turn at Roncesvalles Ave due to road closure. Buses replacing streetcars west of Roncesvalles.",
+      "severity_raw": 2,
+      "timestamp": "2026-05-28T09:30:00+00:00",
+      "source_id": "ttc-alert-501-20260528",
+      "metadata": {"route_id": "501", "stop_id": "14682"}
+    }
+  ],
+  "phases": [
+    {
+      "phase_index": 0,
+      "label": "Utility Work Permit Filed",
+      "sim_time": "08:00",
+      "sim_offset_min": 0,
+      "description": "Toronto Water files a utility work permit for watermain replacement on Queen St W. No 311 call yet — StreetSense is watching but no prediction triggered.",
+      "event_ids": ["uc-queen-2026-001"],
+      "new_event_ids": ["uc-queen-2026-001"]
+    },
+    {
+      "phase_index": 1,
+      "label": "311 Call — Watermain Break",
+      "sim_time": "08:35",
+      "sim_offset_min": 35,
+      "description": "Resident reports watermain break near Roncesvalles. StreetSense fires prediction immediately: expect road closure + 501 streetcar disruption. Proactive dispatch sent to Toronto Water — 55 minutes before TTC knows.",
+      "event_ids": ["uc-queen-2026-001", "311-queen-2026-001"],
+      "new_event_ids": ["311-queen-2026-001"]
+    },
+    {
+      "phase_index": 2,
+      "label": "Road Closure Posted",
+      "sim_time": "08:55",
+      "sim_offset_min": 55,
+      "description": "Transportation Services posts road closure. 3-event cluster forms with utility permit. Road closure confirmed — exactly as StreetSense predicted 20 minutes ago.",
+      "event_ids": ["uc-queen-2026-001", "311-queen-2026-001", "rr-queen-2026-001"],
+      "new_event_ids": ["rr-queen-2026-001"]
+    },
+    {
+      "phase_index": 3,
+      "label": "TTC Alert — Cascade Confirmed",
+      "sim_time": "09:30",
+      "sim_offset_min": 90,
+      "description": "TTC confirms 501 short-turn at Roncesvalles. Full cascade confirmed. StreetSense had this covered 55 minutes ago. Operational brief generated, supervisor approval pending.",
+      "event_ids": ["uc-queen-2026-001", "311-queen-2026-001", "rr-queen-2026-001", "ttc-queen-2026-001"],
+      "new_event_ids": ["ttc-queen-2026-001"]
+    }
+  ]
+}

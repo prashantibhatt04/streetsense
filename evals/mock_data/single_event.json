@@ -1,0 +1,19 @@
+{
+  "scenario_id": "single_event",
+  "description": "Adversarial: only one event, not enough to form a causal cluster.",
+  "events": [
+    {
+      "event_id": "311-2024-solo-001",
+      "source": "requests_311",
+      "event_type": "watermain_break",
+      "latitude": 43.7115,
+      "longitude": -79.4317,
+      "address": "Bathurst St & Prue Ave, Toronto, ON",
+      "description": "Watermain-Possible Break",
+      "severity_raw": 2,
+      "timestamp": "2024-10-02T08:43:00+00:00",
+      "source_id": "311-solo-001",
+      "metadata": {}
+    }
+  ]
+}

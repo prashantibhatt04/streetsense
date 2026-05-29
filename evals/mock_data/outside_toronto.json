@@ -1,0 +1,19 @@
+{
+  "scenario_id": "outside_toronto",
+  "description": "Adversarial: all events outside Toronto bbox — should produce zero clusters.",
+  "events": [
+    {
+      "event_id": "test-mississauga-001",
+      "source": "requests_311",
+      "event_type": "watermain_break",
+      "latitude": 43.10,
+      "longitude": -79.4317,
+      "address": "300 City Centre Dr, Mississauga, ON",
+      "description": "Watermain break outside Toronto bounds",
+      "severity_raw": 2,
+      "timestamp": "2024-10-02T08:43:00+00:00",
+      "source_id": "test-mississauga-001",
+      "metadata": {}
+    }
+  ]
+}

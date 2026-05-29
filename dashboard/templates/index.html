@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreetSense — Urban Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<style>
+  :root {
+    --bg:#080c0f;--bg2:#0d1318;--bg3:#111820;--border:#1e2d38;
+    --amber:#f59e0b;--amber-dim:#92610a;--amber-glow:#f59e0b44;
+    --red:#ef4444;--green:#22c55e;--blue:#38bdf8;--purple:#a78bfa;
+    --text:#d8e8f4;--text-dim:#7292a8;
+    --mono:'Share Tech Mono',monospace;--sans:'Barlow Condensed',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;height:100vh;overflow:hidden;display:flex;flex-direction:column;}
+
+  /* ── Header ──────────────────────────────────────────────── */
+  header{display:flex;align-items:center;justify-content:space-between;padding:8px 20px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;z-index:200;gap:16px;}
+  .logo{font-family:var(--sans);font-weight:700;font-size:20px;letter-spacing:0.12em;text-transform:uppercase;color:var(--amber);flex-shrink:0;}
+  .logo span{color:var(--text-dim);font-weight:300;}
+
+  /* Cost counter — F1 */
+  #cost-counter{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--red);letter-spacing:0.04em;display:none;animation:pulse 2s infinite;}
+  #cost-counter.visible{display:block;}
+
+  .status-bar{display:flex;align-items:center;gap:16px;font-size:11px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-left:auto;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);display:inline-block;margin-right:6px;}
+  .dot.live{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+  .dot.replay{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+  .dot.loading{background:var(--blue);animation:pulse 0.8s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+
+  /* ── Controls ────────────────────────────────────────────── */
+  .controls{display:flex;gap:6px;padding:8px 20px;border-bottom:1px solid var(--border);background:var(--bg2);align-items:center;flex-shrink:0;flex-wrap:wrap;}
+  .btn{font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:5px 14px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+  .btn:hover{border-color:var(--amber);color:var(--amber);}
+  .btn.active{border-color:var(--amber);background:var(--amber-glow);color:var(--amber);}
+  .btn.btn-green{border-color:var(--green);color:var(--green);}
+  .btn.btn-green.active{background:#22c55e22;}
+  .btn:disabled{opacity:0.3;cursor:not-allowed;}
+
+  /* Auto-refresh countdown — F3 */
+  #auto-refresh-countdown{font-size:10px;color:var(--text-dim);margin-left:4px;display:none;}
+  #auto-refresh-countdown.visible{display:inline;}
+
+  .run-time{margin-left:auto;font-size:10px;color:var(--text-dim);}
+
+  /* ── System status strip ─────────────────────────────────── */
+  .system-status{display:flex;align-items:center;gap:20px;padding:4px 20px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:10px;color:var(--text-dim);letter-spacing:0.06em;flex-shrink:0;}
+  .system-status span{white-space:nowrap;}
+  .system-status .highlight{color:var(--amber);}
+
+  /* ── Stats bar ───────────────────────────────────────────── */
+  .stats-bar{display:flex;gap:1px;background:var(--border);flex-shrink:0;}
+  .stat{background:var(--bg2);padding:7px 14px;flex:1;}
+  .stat-value{font-family:var(--sans);font-size:26px;font-weight:700;color:var(--amber);line-height:1;letter-spacing:-0.02em;}
+  .stat-value.zero{color:var(--text-dim);}
+  .stat-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);margin-top:2px;}
+
+  /* ── Main layout ─────────────────────────────────────────── */
+  .main{display:flex;flex:1;overflow:hidden;gap:1px;background:var(--border);}
+  #map{flex:1;background:#0d0906;min-width:0;}
+  .sidebar{width:370px;display:flex;flex-direction:column;gap:1px;background:var(--border);overflow:hidden;flex-shrink:0;}
+  .panel{background:var(--bg2);padding:10px 13px;overflow-y:auto;}
+  .panel-label{font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--text-dim);margin-bottom:7px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .panel-label::after{content:'';flex:1;height:1px;background:var(--border);}
+  .briefs-panel{flex:1;overflow-y:auto;min-height:0;}
+
+  /* Brief card */
+  .brief-card{border:1px solid var(--border);padding:10px 12px;margin-bottom:7px;background:var(--bg3);position:relative;animation:slideIn 0.3s ease forwards;}
+  @keyframes slideIn{from{opacity:0;transform:translateX(10px);}to{opacity:1;transform:translateX(0);}}
+  .brief-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--amber);}
+  .brief-card.sev-high::before{background:var(--red);}
+  .brief-card.sev-low::before{background:var(--green);}
+  .brief-header{display:flex;align-items:baseline;gap:8px;margin-bottom:4px;}
+  .sev-badge{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:0.1em;padding:2px 6px;background:var(--amber-glow);color:var(--amber);border:1px solid var(--amber-dim);white-space:nowrap;}
+  .sev-badge.high{background:#ef444422;color:var(--red);border-color:#7f1d1d;}
+  .sev-badge.low{background:#22c55e22;color:var(--green);border-color:#14532d;}
+  .brief-headline{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text);line-height:1.3;}
+  .brief-body{color:var(--text-dim);font-size:11px;line-height:1.4;margin-bottom:5px;}
+  .brief-meta{display:flex;gap:10px;font-size:10px;color:var(--text-dim);margin-bottom:5px;}
+  .brief-meta strong{color:var(--amber);}
+  .brief-actions{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px;}
+  .action-tag{font-size:10px;letter-spacing:0.05em;text-transform:uppercase;padding:2px 7px;border:1px solid var(--border);color:var(--text-dim);}
+
+  /* Cascade risk badge — F6 */
+  .risk-badge{font-size:10px;letter-spacing:0.06em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--amber-dim);color:var(--amber);background:var(--amber-glow);margin-top:4px;display:inline-block;}
+
+  /* Historical match */
+  .history-card{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--purple);padding:7px 9px;margin-top:5px;font-size:10px;}
+  .hist-label{font-family:var(--sans);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--purple);margin-bottom:3px;}
+  .hist-body{color:var(--text-dim);line-height:1.4;}
+  .hist-body strong{color:var(--text);}
+
+  /* Dispatch panel */
+  .dispatch-panel{flex-shrink:0;max-height:130px;overflow-y:auto;}
+  .dispatch-card{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);padding:7px 9px;margin-bottom:5px;font-size:10px;}
+  .dispatch-priority{font-family:var(--sans);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:3px;}
+  .dispatch-priority.critical{color:var(--red);}
+  .dispatch-priority.high{color:var(--amber);}
+  .dispatch-priority.medium{color:var(--blue);}
+  .dispatch-dept{color:var(--text);font-size:11px;margin-bottom:2px;}
+  .dispatch-commuters{color:var(--green);font-family:var(--sans);font-size:12px;font-weight:700;}
+
+  /* Incident timeline — F4 */
+  .timeline-panel{flex-shrink:0;max-height:160px;overflow-y:auto;}
+  .tl-item{display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;}
+  .tl-item:last-child{border-bottom:none;}
+  .tl-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:2px;}
+  .tl-dot.event{background:var(--blue);}
+  .tl-dot.cluster{background:var(--amber);}
+  .tl-dot.llm{background:var(--purple);}
+  .tl-dot.brief{background:var(--green);}
+  .tl-dot.dispatch{background:var(--red);}
+  .tl-time{color:var(--text-dim);white-space:nowrap;width:44px;flex-shrink:0;}
+  .tl-label{color:var(--text);line-height:1.3;}
+  .tl-gap{font-size:10px;color:var(--amber);margin-left:16px;padding:2px 0;}
+
+  /* Agent log */
+  .log-panel{height:120px;min-height:60px;overflow-y:auto;flex-shrink:0;}
+  .log-line{font-size:11px;color:var(--text-dim);padding:3px 0;border-bottom:1px solid var(--border);line-height:1.4;}
+  .log-ts{color:var(--text-dim);opacity:0.5;margin-right:6px;}
+  .log-msg{color:var(--blue);}
+  .log-msg.done{color:var(--green);}
+  .log-msg.warn{color:var(--amber);}
+
+  .empty{color:var(--text-dim);font-size:11px;padding:4px 0;}
+  .ticker{background:var(--bg3);border-top:1px solid var(--border);padding:5px 20px;font-size:10px;color:var(--text-dim);letter-spacing:0.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+  .ticker strong{color:var(--amber);}
+
+  /* Leaflet overrides */
+  .leaflet-container{background:#0d0906;}
+  .leaflet-tile{filter:brightness(0.48) saturate(0.6) hue-rotate(178deg);}
+  .leaflet-popup-content-wrapper{background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:0;font-family:var(--mono);font-size:11px;}
+  .leaflet-popup-tip{background:var(--bg2);}
+  .leaflet-popup-content{margin:10px 14px;}
+  .pop-type{font-family:var(--sans);font-weight:700;font-size:13px;color:var(--amber);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;}
+  .pop-addr{color:var(--text-dim);font-size:10px;margin-bottom:5px;}
+  .pop-desc{color:var(--text);font-size:11px;line-height:1.4;}
+
+  /* Vehicle marker */
+  .vehicle-dot{width:10px;height:10px;border-radius:50%;border:2px solid #fff;cursor:pointer;}
+
+  /* Predicted cascade panel */
+  .predict-panel{flex-shrink:0;max-height:200px;overflow-y:auto;}
+  .predict-card{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);padding:8px 10px;margin-bottom:6px;font-size:10px;animation:slideIn 0.3s ease forwards;}
+  .predict-label{font-family:var(--sans);font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--blue);margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+  .predict-label .predict-badge{background:#38bdf822;border:1px solid var(--blue);padding:1px 6px;}
+  .predict-confidence{color:var(--text-dim);margin-bottom:3px;}
+  .predict-impacts{color:var(--text-dim);line-height:1.5;margin-bottom:4px;}
+  .predict-reasoning{color:var(--text-dim);font-style:italic;margin-bottom:5px;line-height:1.4;}
+  .predict-dispatch{background:var(--bg2);border:1px solid var(--border);padding:5px 8px;margin-bottom:4px;}
+  .predict-dispatch-header{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+  .predict-dept{color:var(--text);font-size:11px;}
+  .predict-msg{color:var(--text-dim);line-height:1.3;margin-bottom:4px;}
+  .predict-priority{font-family:var(--sans);font-size:9px;letter-spacing:0.1em;text-transform:uppercase;padding:1px 5px;border:1px solid;}
+  .predict-priority.HIGH{color:var(--red);border-color:#7f1d1d;}
+  .predict-priority.MEDIUM{color:var(--amber);border-color:var(--amber-dim);}
+  .predict-priority.LOW{color:var(--green);border-color:#14532d;}
+  .predict-status-approved{font-size:9px;color:var(--green);letter-spacing:0.06em;}
+  .predict-status-rejected{font-size:9px;color:var(--red);letter-spacing:0.06em;}
+
+  /* HITL approval */
+  .hitl-row{display:flex;gap:6px;margin-top:8px;}
+  .btn-approve{flex:1;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:7px 0;border:1px solid var(--green);background:#22c55e22;color:var(--green);cursor:pointer;transition:all 0.15s;}
+  .btn-approve:hover{background:var(--green);color:var(--bg);}
+  .btn-approve:disabled{opacity:0.3;cursor:not-allowed;}
+  .btn-reject{flex:1;font-family:var(--mono);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:7px 0;border:1px solid var(--red);background:#ef444422;color:var(--red);cursor:pointer;transition:all 0.15s;}
+  .btn-reject:hover{background:var(--red);color:#fff;}
+  .btn-reject:disabled{opacity:0.3;cursor:not-allowed;}
+  .approval-status{font-size:10px;margin-top:6px;padding:4px 8px;border-radius:0;}
+  .approval-status.approved{background:#22c55e22;color:var(--green);border:1px solid var(--green);}
+  .approval-status.rejected{background:#ef444422;color:var(--red);border:1px solid var(--red);}
+  .hitl-pending{font-size:10px;color:var(--amber);letter-spacing:0.06em;margin-top:4px;animation:pulse 2s infinite;}
+
+  /* ── Phase replay bar ───────────────────────────────────── */
+  .phase-bar{display:none;align-items:center;gap:16px;padding:8px 20px;background:#070d14;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
+  .phase-bar.visible{display:flex;}
+  .phase-clock{font-family:var(--sans);font-weight:700;font-size:34px;color:var(--amber);letter-spacing:0.04em;min-width:70px;text-shadow:0 0 14px #f59e0b66;line-height:1;}
+  .phase-step{font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);margin-top:3px;}
+  .phase-info{flex:1;min-width:180px;}
+  .phase-label-text{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text);letter-spacing:0.04em;}
+  .phase-desc-text{font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+  .phase-nav-btns{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+  .phase-dots{display:flex;gap:5px;align-items:center;flex-shrink:0;}
+  .phase-dot{width:32px;height:3px;background:var(--border);transition:background 0.3s;}
+  .phase-dot.done{background:var(--amber);}
+  .phase-dot.current{background:var(--amber);animation:phaseDotPulse 1.2s ease-in-out infinite;}
+  @keyframes phaseDotPulse{0%,100%{opacity:1;}50%{opacity:0.45;}}
+  @keyframes phaseTextIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);}}
+  .phase-entering .phase-label-text,.phase-entering .phase-desc-text{animation:phaseTextIn 0.25s ease forwards;}
+
+  /* Confirmed prediction badge + flash */
+  .confirm-badge{background:#22c55e22;border:1px solid #22c55e55;color:var(--green);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;padding:3px 8px;margin-top:4px;display:block;line-height:1.4;}
+  .predict-badge.confirmed{background:#22c55e22;border:1px solid var(--green);color:var(--green);}
+  @keyframes confirmFlash{0%{box-shadow:none;}25%{box-shadow:0 0 22px #22c55e66,inset 0 0 12px #22c55e18;}65%{box-shadow:0 0 8px #22c55e33;}100%{box-shadow:none;}}
+  .predict-card.flash-confirmed{animation:confirmFlash 1.8s ease forwards;}
+  .predict-summary{font-family:var(--sans);font-size:11px;font-weight:600;color:var(--green);background:#22c55e14;border:1px solid #22c55e33;padding:5px 10px;margin-bottom:8px;letter-spacing:0.04em;}
+
+  /* ── 311 submit modal ───────────────────────────────────── */
+  .modal-overlay{position:absolute;inset:0;background:#00000088;cursor:pointer;}
+  .modal-311{position:relative;width:520px;max-width:95vw;max-height:88vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-top:4px solid #003f9c;display:flex;flex-direction:column;z-index:1;}
+  .modal-header-311{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#030d1a;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .modal-city-label{font-family:var(--sans);font-size:9px;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:#4a8fd4;margin-bottom:3px;}
+  .modal-title{font-family:var(--sans);font-size:14px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text);}
+  .modal-subtitle{font-size:9px;color:var(--text-dim);letter-spacing:0.08em;margin-top:2px;}
+  .modal-close{background:none;border:1px solid var(--border);color:var(--text-dim);cursor:pointer;font-size:14px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);flex-shrink:0;}
+  .modal-close:hover{border-color:var(--red);color:var(--red);}
+  .form-311{padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
+  .field-311{display:flex;flex-direction:column;gap:3px;}
+  .field-311 label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-dim);}
+  .field-311 select,.field-311 input,.field-311 textarea{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:6px 9px;width:100%;}
+  .field-311 select:focus,.field-311 input:focus,.field-311 textarea:focus{border-color:var(--amber);outline:none;}
+  .field-311 textarea{resize:vertical;min-height:60px;}
+  .field-row-311{display:flex;gap:8px;}
+  .field-row-311 .field-311{flex:1;}
+  .btn-locate{font-family:var(--mono);font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:6px 12px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;white-space:nowrap;align-self:flex-end;height:31px;}
+  .btn-locate:hover{border-color:var(--blue);color:var(--blue);}
+  .addr-row-311{display:flex;gap:6px;align-items:flex-end;}
+  .addr-row-311 .field-311{flex:1;}
+  .sr-number{font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-glow);border:1px solid var(--amber-dim);padding:2px 8px;}
+  .btn-submit-311{font-family:var(--mono);font-size:12px;letter-spacing:0.1em;text-transform:uppercase;padding:10px 0;border:1px solid var(--blue);background:#38bdf822;color:var(--blue);cursor:pointer;width:100%;transition:all 0.15s;}
+  .btn-submit-311:hover{background:var(--blue);color:var(--bg);}
+  .btn-submit-311:disabled{opacity:0.3;cursor:not-allowed;}
+  .result-311{border-top:1px solid var(--border);padding:14px 18px;background:var(--bg3);}
+  .result-311-label{font-family:var(--sans);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--green);margin-bottom:6px;}
+  .result-311-sr{font-size:11px;color:var(--text-dim);margin-bottom:4px;}
+  .modal-311-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;gap:10px;min-height:180px;}
+  .loading-line-1{font-family:var(--sans);font-size:13px;color:var(--text);letter-spacing:0.06em;animation:pulse 1.5s infinite;}
+  .loading-line-2{font-family:var(--mono);font-size:11px;color:var(--blue);letter-spacing:0.06em;opacity:0;animation:loadingLine2Fade 0.4s ease 0.8s forwards;}
+  @keyframes loadingLine2Fade{to{opacity:1;}}
+  .predict-ai-card{margin-top:8px;border-left:3px solid var(--blue);padding:8px 10px;background:var(--bg);box-shadow:0 0 14px #38bdf818;}
+  .predict-ai-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+  .predict-ai-clear{margin-top:8px;padding:8px 10px;background:#22c55e0a;border:1px solid #22c55e22;border-left:3px solid var(--green);font-size:11px;color:var(--text-dim);}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Street<span>Sense</span></div>
+  <!-- F1: Economic cost counter -->
+  <div id="cost-counter"></div>
+  <div class="status-bar">
+    <div><span class="dot" id="status-dot"></span><span id="mode-label">IDLE</span></div>
+    <div id="run-id-display" style="font-size:10px;"></div>
+    <div id="ts-display" style="font-size:10px;"></div>
+  </div>
+</header>
+
+<div class="controls">
+  <button class="btn" id="btn-replay" onclick="loadPhase('oct2024_bathurst',0)">▶ Bathurst Oct 2024</button>
+  <button class="btn" id="btn-flood"  onclick="loadPhase('july2024_flood',0)">▶ DVP Flood Jul 2024</button>
+  <button class="btn" id="btn-queen" onclick="loadPhase('queen_st_active',0)">▶ Queen St W</button>
+  <button class="btn" id="btn-db" onclick="loadDb()">⬛ Local DB</button>
+  <button class="btn" id="btn-live" onclick="loadLive()">⟳ Live Feeds</button>
+  <button class="btn" id="btn-311" onclick="openModal311()" title="Submit a 311 service request and see StreetSense predict the cascade">📋 Submit 311</button>
+  <!-- Heatmap toggle -->
+  <button class="btn" id="btn-heat" onclick="toggleHeatmap()" title="Historical incident heatmap">🔥 History</button>
+  <!-- F3: Auto-refresh toggle -->
+  <button class="btn btn-green" id="btn-auto" onclick="toggleAutoRefresh()">◉ Auto</button>
+  <span id="auto-refresh-countdown"></span>
+  <div id="db-status-badge" style="font-size:10px;color:var(--text-dim);margin-left:4px;"></div>
+  <div class="run-time" id="run-time-display"></div>
+</div>
+
+<!-- Phase replay timeline bar — shown only during phased scenario playback -->
+<div class="phase-bar" id="phase-bar">
+  <div style="flex-shrink:0">
+    <div class="phase-clock" id="phase-sim-time">—:—</div>
+    <div class="phase-step" id="phase-step-label">PHASE 1/3</div>
+  </div>
+  <div class="phase-info">
+    <div class="phase-label-text" id="phase-label-text"></div>
+    <div class="phase-desc-text" id="phase-desc-text"></div>
+  </div>
+  <div class="phase-dots" id="phase-dots"></div>
+  <div class="phase-nav-btns">
+    <button id="btn-phase-prev" class="btn" onclick="prevPhase()">← Prev</button>
+    <button id="btn-phase-next" class="btn" onclick="nextPhase()">Next →</button>
+    <button id="btn-phase-skip" class="btn btn-green" onclick="skipToFinalPhase()" title="Jump to final phase">» End</button>
+    <button id="btn-phase-restart" class="btn" onclick="loadPhase(_currentPhaseScenario,0)" title="Restart from phase 1" style="display:none">↺ Restart</button>
+  </div>
+</div>
+
+<div class="system-status">
+  <span>LAST RUN: <span class="highlight" id="status-last-run">—</span></span>
+  <span>NEXT REFRESH: <span class="highlight" id="status-next-refresh">—</span></span>
+  <span>CYCLES: <span class="highlight" id="status-cycles">0</span></span>
+  <span>ACTIVE BRIEFS: <span class="highlight" id="status-briefs">0</span></span>
+  <span>PENDING DISPATCHES: <span class="highlight" id="status-pending">0</span></span>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-value zero" id="val-events">—</div><div class="stat-label">Events</div></div>
+  <div class="stat"><div class="stat-value zero" id="val-clusters">—</div><div class="stat-label">Clusters</div></div>
+  <div class="stat"><div class="stat-value zero" id="val-briefs">—</div><div class="stat-label">Briefs</div></div>
+  <div class="stat"><div class="stat-value zero" id="val-commuters">—</div><div class="stat-label">Commuters</div></div>
+  <div class="stat"><div class="stat-value zero" id="val-sev">—</div><div class="stat-label">Max Severity</div></div>
+</div>
+
+<div class="main">
+  <div id="map"></div>
+  <div class="sidebar">
+    <div class="panel briefs-panel">
+      <div class="panel-label">Operational Briefs</div>
+      <div id="briefs-content"><div class="empty">Run pipeline or replay to see briefs</div></div>
+    </div>
+    <div class="panel predict-panel">
+      <div class="panel-label">Early Warning — Predicted Cascades</div>
+      <div id="predict-content"><div class="empty">—</div></div>
+    </div>
+    <div class="panel dispatch-panel">
+      <div class="panel-label">Dispatch Payload</div>
+      <div id="dispatch-content"><div class="empty">—</div></div>
+    </div>
+    <!-- F4: Incident Timeline -->
+    <div class="panel timeline-panel">
+      <div class="panel-label">Incident Timeline</div>
+      <div id="timeline-content"><div class="empty">—</div></div>
+    </div>
+    <div class="panel log-panel">
+      <div class="panel-label">Agent Reasoning</div>
+      <div id="agent-log"><div class="empty">—</div></div>
+    </div>
+  </div>
+</div>
+<div class="ticker" id="ticker">StreetSense — ready</div>
+
+<script>
+// ============================================================
+// MAP INIT
+// ============================================================
+const map = L.map('map', {center:[43.7,-79.40],zoom:13,zoomControl:true});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap',maxZoom:19
+}).addTo(map);
+
+const TYPE_COLOUR = {
+  watermain_break:'#ef4444', road_closure:'#f59e0b',
+  transit_disruption:'#38bdf8', utility_work:'#a78bfa',
+  flooding:'#06b6d4', sewer_backup:'#84cc16', unknown:'#6b7280',
+};
+
+let _markerLayer  = L.layerGroup().addTo(map);
+let _clusterLayer = L.layerGroup().addTo(map);
+let _bikeLayer    = L.layerGroup().addTo(map);
+let _vehicleLayer = L.layerGroup().addTo(map); // F5
+
+function renderMap(data) {
+  _markerLayer.clearLayers();
+  _clusterLayer.clearLayers();
+  _bikeLayer.clearLayers();
+
+  const events = data.events_geo || [];
+  events.forEach(e => {
+    const c = TYPE_COLOUR[e.event_type] || '#6b7280';
+    L.circleMarker([e.lat,e.lng],{radius:9,fillColor:c,color:c,weight:2,opacity:0.9,fillOpacity:0.65})
+     .bindPopup(`<div class="pop-type">${e.event_type.replace(/_/g,' ')}</div>
+                 <div class="pop-addr">${e.address}</div>
+                 <div class="pop-desc">${e.description}</div>`)
+     .addTo(_markerLayer);
+  });
+
+  (data.clusters||[]).forEach(c => {
+    L.circle([c.centroid_lat,c.centroid_lng],{
+      radius:Math.max(c.radius_m,80),color:'#f59e0b',weight:2,
+      opacity:0.8,fillColor:'#f59e0b',fillOpacity:0.08,dashArray:'6 4'
+    }).bindPopup(`<div class="pop-type">Cluster — ${c.event_count} events</div>
+                  <div class="pop-desc">${c.event_types.join(' · ')} · ${c.radius_m}m radius</div>`)
+     .addTo(_clusterLayer);
+
+    // Bike share pins (F2 data already in cluster)
+    (c.bike_stations||[]).forEach(s => {
+      const avail = s.available_bikes;
+      const col = avail > 3 ? '#22c55e' : avail > 0 ? '#f59e0b' : '#ef4444';
+      L.circleMarker([s.lat,s.lng],{radius:7,fillColor:col,color:'#fff',weight:1.5,opacity:1,fillOpacity:0.9})
+       .bindPopup(`<div class="pop-type" style="color:${col}">🚲 Bike Share</div>
+                   <div class="pop-addr">${s.name}</div>
+                   <div class="pop-desc"><strong>${avail}</strong> bikes · ${s.distance_m}m</div>`)
+       .addTo(_bikeLayer);
+    });
+  });
+
+  if (events.length > 0) {
+    map.fitBounds(L.latLngBounds(events.map(e=>[e.lat,e.lng])).pad(0.25));
+  }
+  setTimeout(()=>map.invalidateSize(),100);
+}
+
+// ============================================================
+// HISTORICAL HEATMAP — F2 implementation
+// ============================================================
+let _heatLayer   = null;
+let _heatVisible = false;
+
+async function toggleHeatmap() {
+  const btn = document.getElementById('btn-heat');
+  if (_heatVisible) {
+    if (_heatLayer) map.removeLayer(_heatLayer);
+    _heatVisible = false;
+    btn.classList.remove('active');
+    btn.title = 'Show historical incident heatmap';
+  } else {
+    try {
+      const res  = await fetch('/api/heatmap');
+      const data = await res.json();
+      if (!data.points || data.points.length === 0) {
+        btn.title = 'No historical patterns in DB yet';
+        return;
+      }
+      const pts = data.points.map(p => [p.lat, p.lng, p.weight]);
+      _heatLayer = L.heatLayer(pts, {
+        radius: 90,
+        blur: 70,
+        maxZoom: 14,
+        max: 1.0,
+        gradient: {0.0:'#22c55e', 0.5:'#f59e0b', 0.8:'#ef4444', 1.0:'#7f1d1d'},
+      }).addTo(map);
+      _heatVisible = true;
+      btn.classList.add('active');
+      btn.title = `${data.points.length} historical corridors shown`;
+
+      // Add corridor label popups
+      data.points.forEach(p => {
+        L.circleMarker([p.lat, p.lng], {
+          radius: 4, fillColor: '#f59e0b', color: '#f59e0b',
+          weight: 1, opacity: 0.6, fillOpacity: 0.4,
+        }).bindPopup(
+          `<div class="pop-type" style="color:var(--amber)">📋 Historical Pattern</div>
+           <div class="pop-addr">${p.corridor.charAt(0).toUpperCase()+p.corridor.slice(1)} corridor</div>
+           <div class="pop-desc">${p.cascade_type.replace(/_/g,'→')} · confidence ${Math.round(p.weight*100)}% · ${p.occurrences} incident(s)</div>`
+        ).addTo(_heatLayer);
+      });
+    } catch(e) {
+      console.error('Heatmap failed:', e);
+    }
+  }
+}
+
+// ============================================================
+// HITL APPROVAL
+// ============================================================
+const _approvalState = {};   // cluster_id → 'pending'|'approved'|'rejected'
+
+async function approveDispatch(clusterId) {
+  const btn    = document.getElementById(`btn-approve-${clusterId}`);
+  const rejBtn = document.getElementById(`btn-reject-${clusterId}`);
+  const status = document.getElementById(`approval-status-${clusterId}`);
+  if (btn) btn.disabled = true;
+  if (rejBtn) rejBtn.disabled = true;
+
+  try {
+    const res  = await fetch(`/api/approve/${clusterId}`, {method:'POST'});
+    const data = await res.json();
+    _approvalState[clusterId] = 'approved';
+    if (status) {
+      status.textContent = `✓ APPROVED  ${new Date(data.approved_at).toLocaleTimeString('en-CA',{hour12:false})}${data.slack_sent ? '  · Slack sent' : '  · (no Slack webhook)'}`;
+      status.className   = 'approval-status approved';
+    }
+    // Remove pending pulse
+    const pending = document.getElementById(`hitl-pending-${clusterId}`);
+    if (pending) pending.remove();
+    // Log entry
+    _logEntries.push({ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}), msg:`Supervisor APPROVED dispatch for ${clusterId.slice(0,12)}`});
+    renderLog();
+  } catch(e) {
+    if (btn) btn.disabled = false;
+    if (rejBtn) rejBtn.disabled = false;
+    console.error('Approval failed:', e);
+  }
+}
+
+async function rejectDispatch(clusterId) {
+  const btn    = document.getElementById(`btn-approve-${clusterId}`);
+  const rejBtn = document.getElementById(`btn-reject-${clusterId}`);
+  const status = document.getElementById(`approval-status-${clusterId}`);
+  if (btn) btn.disabled = true;
+  if (rejBtn) rejBtn.disabled = true;
+
+  try {
+    const res  = await fetch(`/api/reject/${clusterId}`, {method:'POST'});
+    const data = await res.json();
+    _approvalState[clusterId] = 'rejected';
+    if (status) {
+      status.textContent = `✗ REJECTED  ${new Date(data.rejected_at).toLocaleTimeString('en-CA',{hour12:false})} — no dispatch sent`;
+      status.className   = 'approval-status rejected';
+    }
+    const pending = document.getElementById(`hitl-pending-${clusterId}`);
+    if (pending) pending.remove();
+    _logEntries.push({ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}), msg:`Supervisor REJECTED dispatch for ${clusterId.slice(0,12)}`});
+    renderLog();
+  } catch(e) {
+    if (btn) btn.disabled = false;
+    if (rejBtn) rejBtn.disabled = false;
+  }
+}
+
+// ============================================================
+// F5 — TTC VEHICLE POSITIONS
+// ============================================================
+let _vehiclePoll = null;
+let _activeRoutes = [];
+
+async function startVehicleTracking(routes) {
+  _activeRoutes = routes || [];
+  if (_vehiclePoll) clearInterval(_vehiclePoll);
+  await fetchVehicles();
+  _vehiclePoll = setInterval(fetchVehicles, 30000);
+}
+
+function stopVehicleTracking() {
+  if (_vehiclePoll) { clearInterval(_vehiclePoll); _vehiclePoll = null; }
+  _vehicleLayer.clearLayers();
+}
+
+async function fetchVehicles() {
+  if (!_activeRoutes.length) return;
+  try {
+    const res = await fetch(`/api/vehicles?routes=${_activeRoutes.join(',')}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    _vehicleLayer.clearLayers();
+    (data.vehicles||[]).forEach(v => {
+      const col = v.route_id === '511' ? '#38bdf8' :
+                  v.route_id === '501' ? '#a78bfa' : '#22c55e';
+      const icon = L.divIcon({
+        className:'',
+        html:`<div class="vehicle-dot" style="background:${col};transform:rotate(${v.bearing||0}deg)"></div>`,
+        iconSize:[10,10], iconAnchor:[5,5]
+      });
+      L.marker([v.lat,v.lng],{icon})
+       .bindPopup(`<div class="pop-type" style="color:${col}">🚌 TTC Route ${v.route_id}</div>
+                   <div class="pop-addr">Vehicle ${v.vehicle_id}</div>
+                   <div class="pop-desc">Speed: ${v.speed||'—'} km/h</div>`)
+       .addTo(_vehicleLayer);
+    });
+  } catch(e) { /* silent — vehicles are best-effort */ }
+}
+
+// ============================================================
+// F1 — ECONOMIC COST COUNTER
+// ============================================================
+let _costInterval = null;
+let _costStartMs  = null;
+let _costPerHour  = 0;
+
+function startCostCounter(commuters) {
+  if (_costInterval) clearInterval(_costInterval);
+  _costPerHour  = commuters; // $1/person/hr
+  _costStartMs  = Date.now();
+  const el = document.getElementById('cost-counter');
+  el.classList.add('visible');
+  _costInterval = setInterval(() => {
+    const hrs  = (Date.now() - _costStartMs) / 3_600_000;
+    const cost = Math.floor(_costPerHour * hrs);
+    el.textContent = `⚠ $${cost.toLocaleString()} uncoordinated delay cost`;
+  }, 1000);
+}
+
+function stopCostCounter() {
+  if (_costInterval) { clearInterval(_costInterval); _costInterval = null; }
+  const el = document.getElementById('cost-counter');
+  el.classList.remove('visible');
+  el.textContent = '';
+}
+
+// ============================================================
+// F2 — BROWSER PUSH NOTIFICATIONS
+// ============================================================
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function maybePushNotification(maxSev, headline, commuters) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  if (maxSev < 7) return;
+  new Notification(`StreetSense Alert — SEV ${maxSev}/10`, {
+    body: `${headline}\nEst. ${commuters.toLocaleString()} commuters affected`,
+    icon: '/static/icon.png',
+    tag: 'streetsense-alert',        // replaces previous notification
+    requireInteraction: true,
+  });
+}
+
+// ============================================================
+// F3 — AUTO-REFRESH LIVE MODE
+// ============================================================
+let _autoRefresh     = false;
+let _autoInterval    = null;
+let _autoCountdown   = 60;
+let _countdownTick   = null;
+const AUTO_INTERVAL_S = 60;
+
+function toggleAutoRefresh() {
+  _autoRefresh = !_autoRefresh;
+  const btn = document.getElementById('btn-auto');
+  const cd  = document.getElementById('auto-refresh-countdown');
+  if (_autoRefresh) {
+    btn.classList.add('active');
+    _autoCountdown = AUTO_INTERVAL_S;
+    cd.classList.add('visible');
+    _countdownTick = setInterval(() => {
+      _autoCountdown--;
+      cd.textContent = `${_autoCountdown}s`;
+      if (_autoCountdown <= 0) {
+        _autoCountdown = AUTO_INTERVAL_S;
+        loadDb();
+      }
+    }, 1000);
+    cd.textContent = `${_autoCountdown}s`;
+  } else {
+    btn.classList.remove('active');
+    cd.classList.remove('visible');
+    if (_countdownTick) { clearInterval(_countdownTick); _countdownTick = null; }
+  }
+}
+
+// Reset countdown after each manual load
+function resetAutoCountdown() {
+  if (!_autoRefresh) return;
+  _autoCountdown = AUTO_INTERVAL_S;
+}
+
+// ============================================================
+// F4 — INCIDENT TIMELINE
+// ============================================================
+function renderTimeline(data) {
+  const el = document.getElementById('timeline-content');
+  if (!data.briefs || data.briefs.length === 0) {
+    el.innerHTML = '<div class="empty">—</div>';
+    return;
+  }
+
+  const events = (data.events_geo || []).slice().sort((a,b) => 0); // order preserved
+  const now    = new Date(data.timestamp);
+  const lines  = [];
+
+  // Events (use index as proxy for arrival order since we don't have timestamps in events_geo)
+  (data.events_geo||[]).forEach((e,i) => {
+    lines.push({dot:'event', label:`${e.event_type.replace(/_/g,' ')} at ${e.address.split(',')[0]}`});
+  });
+
+  // Cluster
+  if (data.summary.clusters_found > 0) {
+    lines.push({dot:'cluster', label:`Cluster formed — ${data.summary.clusters_found} group(s)`});
+  }
+
+  // LLM
+  if (data.summary.correlations > 0) {
+    const corr = data.briefs[0];
+    lines.push({dot:'llm', label:`LLM: causal analysis complete`});
+  }
+
+  // Brief
+  data.briefs.forEach(b => {
+    lines.push({dot:'brief', label:`Brief: SEV ${b.severity}/10 — ${b.headline.substring(0,45)}…`});
+  });
+
+  // Dispatch
+  if ((data.dispatch||[]).length > 0) {
+    lines.push({dot:'dispatch', label:`Dispatch → ${data.dispatch[0].target_department}`});
+  }
+
+  // Historical comparison
+  const brief = data.briefs[0];
+  let histNote = '';
+  if (brief?.historical_match?.uncoordinated_hours) {
+    const hrs = brief.historical_match.uncoordinated_hours;
+    histNote = `<div class="tl-gap">↑ without StreetSense: ${hrs}h · with StreetSense: detected in minutes</div>`;
+  }
+
+  el.innerHTML = lines.map(l =>
+    `<div class="tl-item">
+       <div class="tl-dot ${l.dot}"></div>
+       <div class="tl-label">${l.label}</div>
+     </div>`
+  ).join('') + histNote;
+}
+
+// ============================================================
+// F6 — CASCADE RISK BADGES (from API data)
+// ============================================================
+function renderCascadeRisk(brief) {
+  if (!brief.at_risk_routes || brief.at_risk_routes.length === 0) return '';
+  const routes = brief.at_risk_routes.join(', ');
+  return `<div class="risk-badge">⚠ At-risk routes not yet alerted: ${routes}</div>`;
+}
+
+// ============================================================
+// AGENT LOG
+// ============================================================
+let _logPoll    = null;
+let _logEntries = [];
+
+function startLogPoll() {
+  stopLogPoll();
+  _logEntries = [];
+  _logPoll = setInterval(async () => {
+    try {
+      const r = await fetch('/api/log');
+      const d = await r.json();
+      if (d.entries?.length) { _logEntries = d.entries; renderLog(); }
+    } catch(e){}
+  }, 1500);
+}
+
+function stopLogPoll() {
+  if (_logPoll) { clearInterval(_logPoll); _logPoll = null; }
+}
+
+function renderLog() {
+  const el = document.getElementById('agent-log');
+  if (!_logEntries.length) { el.innerHTML='<div class="empty">—</div>'; return; }
+  el.innerHTML = [..._logEntries].reverse().map(e => {
+    const cls = e.msg.includes('complete')||e.msg.includes('generated') ? 'done'
+              : e.msg.includes('Error')||e.msg.includes('failed') ? 'warn' : '';
+    return `<div class="log-line"><span class="log-ts">${e.ts}</span><span class="log-msg ${cls}">${e.msg}</span></div>`;
+  }).join('');
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+const statusDot = document.getElementById('status-dot');
+const modeLabel = document.getElementById('mode-label');
+
+function setLoading(msg) {
+  statusDot.className='dot loading'; modeLabel.textContent='RUNNING';
+  ['btn-replay','btn-flood','btn-queen','btn-db','btn-live','btn-311',
+   'btn-phase-prev','btn-phase-next','btn-phase-skip'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=true;});
+  document.getElementById('ticker').innerHTML=`<strong>⟳ ${msg}</strong>`;
+  startLogPoll();
+}
+
+function clearLoading() {
+  ['btn-replay','btn-flood','btn-queen','btn-db','btn-live','btn-311',
+   'btn-phase-prev','btn-phase-next','btn-phase-skip'].forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=false;});
+  stopLogPoll();
+  fetch('/api/log').then(r=>r.json()).then(d=>{if(d.entries?.length){_logEntries=d.entries;renderLog();}});
+}
+
+function sevClass(s){return s>=7?'high':s>=4?'med':'low';}
+
+// ============================================================
+// PREDICTED CASCADES
+// ============================================================
+const _predictState    = {};  // dispatch_id → 'approved'|'rejected'
+let   _confirmedEventIds = new Set();
+
+async function approvePrediction(dispatchId) {
+  const row = document.getElementById(`pred-row-${dispatchId}`);
+  try {
+    const res  = await fetch(`/api/predict-approve/${dispatchId}`, {method:'POST'});
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _predictState[dispatchId] = 'approved';
+    if (row) row.innerHTML = `<span class="predict-status-approved">✓ APPROVED ${new Date(data.approved_at).toLocaleTimeString('en-CA',{hour12:false})}</span>`;
+    _logEntries.push({ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}), msg:`Predicted dispatch APPROVED: ${dispatchId.slice(0,24)}`});
+    renderLog();
+  } catch(e) { console.error('Approve prediction failed:', e); }
+}
+
+async function rejectPrediction(dispatchId) {
+  const row = document.getElementById(`pred-row-${dispatchId}`);
+  try {
+    const res  = await fetch(`/api/predict-reject/${dispatchId}`, {method:'POST'});
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _predictState[dispatchId] = 'rejected';
+    if (row) row.innerHTML = `<span class="predict-status-rejected">✗ REJECTED ${new Date(data.rejected_at).toLocaleTimeString('en-CA',{hour12:false})}</span>`;
+    _logEntries.push({ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}), msg:`Predicted dispatch REJECTED: ${dispatchId.slice(0,24)}`});
+    renderLog();
+  } catch(e) { console.error('Reject prediction failed:', e); }
+}
+
+function renderPredictions(data, confirmedPredictions) {
+  const el = document.getElementById('predict-content');
+  const predictions = data.predicted_cascades || [];
+  if (!predictions.length) {
+    el.innerHTML = '<div class="empty">No early-warning predictions this run</div>';
+    _confirmedEventIds = new Set();
+    return;
+  }
+
+  // Build lookup: trigger_event_id → [confirmations]
+  const confirmedMap = {};
+  (confirmedPredictions || []).forEach(cp => {
+    if (!confirmedMap[cp.trigger_event_id]) confirmedMap[cp.trigger_event_id] = [];
+    confirmedMap[cp.trigger_event_id].push(cp);
+  });
+
+  // Summary banner when any predictions are confirmed
+  const totalConfirmed = (confirmedPredictions || []).length;
+  let summaryHtml = '';
+  if (totalConfirmed > 0) {
+    const first = confirmedPredictions[0];
+    const desc  = totalConfirmed === 1
+      ? `1 prediction confirmed — ${first.confirmed_by_type.replace(/_/g,' ')} arrived ${first.minutes_after_prediction} min after alert`
+      : `${totalConfirmed} predictions confirmed`;
+    summaryHtml = `<div class="predict-summary">✓ ${desc}</div>`;
+  }
+
+  el.innerHTML = summaryHtml + predictions.map(pc => {
+    const pct           = Math.round(pc.confidence * 100);
+    const confirmations = confirmedMap[pc.trigger_event_id] || [];
+    const isConfirmed   = confirmations.length > 0;
+
+    const impactsHtml = (pc.predicted_impacts||[]).map(i =>
+      `<div>· ${i}</div>`).join('');
+
+    const confirmedHtml = confirmations.map(c =>
+      `<div class="confirm-badge">✓ ${c.confirmed_by_type.replace(/_/g,' ').toUpperCase()} CONFIRMED — arrived ${c.minutes_after_prediction} min after this prediction</div>`
+    ).join('');
+
+    const dispatchesHtml = (pc.recommended_dispatches||[]).map(d => {
+      const existing = _predictState[d.dispatch_id] || d.status;
+      let actionHtml;
+      if (existing === 'APPROVED' || existing === 'approved') {
+        actionHtml = `<span class="predict-status-approved">✓ APPROVED</span>`;
+      } else if (existing === 'REJECTED' || existing === 'rejected') {
+        actionHtml = `<span class="predict-status-rejected">✗ REJECTED</span>`;
+      } else {
+        actionHtml = `<div class="hitl-row" style="margin-top:3px;">
+          <button class="btn-approve" style="font-size:10px;padding:4px 0;" onclick="approvePrediction('${d.dispatch_id}')">✓ Approve</button>
+          <button class="btn-reject"  style="font-size:10px;padding:4px 0;" onclick="rejectPrediction('${d.dispatch_id}')">✗ Reject</button>
+        </div>`;
+      }
+      return `<div class="predict-dispatch">
+        <div class="predict-dispatch-header">
+          <span class="predict-priority ${d.priority}">${d.priority}</span>
+          <span class="predict-dept">${d.target_department}</span>
+        </div>
+        <div class="predict-msg">${d.message}</div>
+        <div id="pred-row-${d.dispatch_id}">${actionHtml}</div>
+      </div>`;
+    }).join('');
+
+    const badgeClass = isConfirmed ? 'predict-badge confirmed' : 'predict-badge';
+    const badgeText  = isConfirmed ? 'PREDICTED + CONFIRMED' : 'PREDICTED — not yet confirmed';
+
+    return `<div class="predict-card" data-event-id="${pc.trigger_event_id}">
+      <div class="predict-label">
+        <span class="${badgeClass}">${badgeText}</span>
+      </div>
+      ${confirmedHtml}
+      <div class="predict-confidence" style="color:var(--blue)">Confidence: ${pct}%</div>
+      <div class="predict-impacts">${impactsHtml}</div>
+      <div class="predict-reasoning">${pc.reasoning}</div>
+      ${dispatchesHtml}
+    </div>`;
+  }).join('');
+
+  // Flash cards that became confirmed in this render
+  const newConfirmedIds = new Set(Object.keys(confirmedMap));
+  newConfirmedIds.forEach(eid => {
+    if (!_confirmedEventIds.has(eid)) {
+      const card = el.querySelector(`.predict-card[data-event-id="${eid}"]`);
+      if (card) {
+        void card.offsetWidth;
+        card.classList.add('flash-confirmed');
+        setTimeout(() => card.classList.remove('flash-confirmed'), 2000);
+      }
+    }
+  });
+  _confirmedEventIds = newConfirmedIds;
+}
+
+// ============================================================
+// RENDER DATA — wires all features together
+// ============================================================
+function renderData(data) {
+  const s = data.summary;
+
+  // Stats bar
+  document.getElementById('val-events').textContent   = s.events_ingested;
+  document.getElementById('val-events').classList.toggle('zero', s.events_ingested===0);
+  document.getElementById('val-clusters').textContent = s.clusters_found;
+  document.getElementById('val-clusters').classList.toggle('zero', s.clusters_found===0);
+  document.getElementById('val-briefs').textContent   = s.briefs_generated;
+  document.getElementById('val-briefs').classList.toggle('zero', s.briefs_generated===0);
+
+  const maxSev      = s.max_severity || 0;
+  const totalComm   = s.total_commuters || 0;
+  document.getElementById('val-commuters').textContent = totalComm>0 ? Math.round(totalComm/1000)+'k' : '—';
+  document.getElementById('val-commuters').classList.toggle('zero', totalComm===0);
+  document.getElementById('val-sev').textContent       = maxSev || '—';
+  document.getElementById('val-sev').classList.toggle('zero', !maxSev);
+
+  // F1 — cost counter: start if severity ≥ 4 and commuters known
+  if (maxSev >= 4 && totalComm > 0) {
+    startCostCounter(totalComm);
+  } else {
+    stopCostCounter();
+  }
+
+  // F2 — push notification
+  const topBrief = data.briefs[0];
+  if (topBrief) maybePushNotification(maxSev, topBrief.headline, totalComm);
+
+  // F5 — start vehicle tracking for affected routes
+  const affectedRoutes = [...new Set(data.briefs.flatMap(b => b.affected_routes||[]))];
+  if (affectedRoutes.length > 0) {
+    startVehicleTracking(affectedRoutes);
+  } else {
+    stopVehicleTracking();
+  }
+
+  // Mode indicator
+  ['btn-replay','btn-flood','btn-queen','btn-db','btn-live','btn-311'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
+  if (data.mode==='replay-phase' || data.mode==='replay') {
+    statusDot.className='dot replay'; modeLabel.textContent='REPLAY';
+    const sc = (data.phase_info||{}).scenario || '';
+    if (sc==='oct2024_bathurst') document.getElementById('btn-replay')?.classList.add('active');
+    else if (sc==='july2024_flood') document.getElementById('btn-flood')?.classList.add('active');
+    else if (sc==='queen_st_active') document.getElementById('btn-queen')?.classList.add('active');
+    else document.getElementById('btn-replay')?.classList.add('active');
+  } else if (data.mode==='311-submit') {
+    statusDot.className='dot replay'; modeLabel.textContent='311 TICKET';
+    document.getElementById('btn-311')?.classList.add('active');
+  } else if (data.mode==='db') {
+    statusDot.className='dot replay'; modeLabel.textContent='LOCAL DB';
+    document.getElementById('btn-db').classList.add('active');
+  } else {
+    statusDot.className='dot live'; modeLabel.textContent='LIVE';
+    document.getElementById('btn-live').classList.add('active');
+  }
+
+  document.getElementById('run-id-display').textContent = data.run_id;
+  document.getElementById('ts-display').textContent =
+    new Date(data.timestamp).toLocaleTimeString('en-CA',{hour12:false});
+
+  // Briefs (with F6 cascade risk badges)
+  const bc = document.getElementById('briefs-content');
+  bc.innerHTML = data.briefs.length ? data.briefs.map(b => {
+    const sc = sevClass(b.severity);
+    const commHtml = b.estimated_commuters > 0
+      ? `<strong style="color:var(--amber)">${b.estimated_commuters.toLocaleString()}</strong> commuters`
+      : '';
+    const routeHtml = b.affected_routes?.length ? `TTC ${b.affected_routes.join(', ')}` : '';
+    const hist = b.historical_match ? `
+      <div class="history-card">
+        <div class="hist-label">📋 Historical Match</div>
+        <div class="hist-body">
+          <strong>${b.historical_match.similar_date}</strong> — ${(b.historical_match.corridor||'').toUpperCase()}<br>
+          Uncoordinated <strong>${b.historical_match.uncoordinated_hours}h</strong>.
+          ${(b.historical_match.outcome||'').substring(0,90)}…
+        </div>
+      </div>` : '';
+    const risk = renderCascadeRisk(b);
+    return `<div class="brief-card sev-${sc}">
+      <div class="brief-header">
+        <span class="sev-badge ${sc}">SEV ${b.severity}/10</span>
+        <div class="brief-headline">${b.headline}</div>
+      </div>
+      <div class="brief-meta">
+        ${commHtml ? `<span>${commHtml}</span>` : ''}
+        ${routeHtml ? `<span>${routeHtml}</span>` : ''}
+      </div>
+      <div class="brief-body">${b.body}</div>
+      <div class="brief-actions">${(b.actions||[]).map(a=>`<span class="action-tag">${a}</span>`).join('')}</div>
+      ${risk}${hist}
+    </div>`;
+  }).join('') : '<div class="empty">No briefs generated</div>';
+
+  // Dispatch + HITL approval
+  const dc = document.getElementById('dispatch-content');
+  if ((data.dispatch||[]).length) {
+    dc.innerHTML = data.dispatch.map(d => {
+      const cid = d.payload?.cluster_id || '';
+      const existing = _approvalState[cid];
+      const statusHtml = existing === 'approved'
+        ? `<div class="approval-status approved">✓ APPROVED</div>`
+        : existing === 'rejected'
+        ? `<div class="approval-status rejected">✗ REJECTED</div>`
+        : `<div class="hitl-pending" id="hitl-pending-${cid}">⚠ AWAITING SUPERVISOR APPROVAL</div>`;
+      const btnsHtml = existing
+        ? ''
+        : `<div class="hitl-row">
+             <button class="btn-approve" id="btn-approve-${cid}" onclick="approveDispatch('${cid}')">✓ Approve Dispatch</button>
+             <button class="btn-reject"  id="btn-reject-${cid}"  onclick="rejectDispatch('${cid}')">✗ Reject</button>
+           </div>`;
+      return `<div class="dispatch-card">
+        <div class="dispatch-priority ${d.priority}">${d.priority.toUpperCase()} — ${d.action_type.replace(/_/g,' ')}</div>
+        <div class="dispatch-dept">${d.target_department}</div>
+        ${d.payload?.estimated_commuters ? `<div class="dispatch-commuters">${d.payload.estimated_commuters.toLocaleString()} commuters</div>` : ''}
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${d.payload?.headline||''}</div>
+        ${statusHtml}
+        ${btnsHtml}
+        <div class="approval-status" id="approval-status-${cid}"></div>
+      </div>`;
+    }).join('');
+  } else {
+    dc.innerHTML = '<div class="empty">No dispatch payloads — severity must be ≥4</div>';
+  }
+
+  // F4 — incident timeline
+  renderTimeline(data);
+
+  // Ticker
+  const tp = [];
+  if (data.briefs.length) data.briefs.forEach(b=>tp.push(`[SEV ${b.severity}/10] ${b.headline}`));
+  if (s.errors>0) tp.push(`${s.errors} PIPELINE ERROR${s.errors>1?'S':''}`);
+  document.getElementById('ticker').innerHTML =
+    tp.map(p=>`<strong>${p}</strong>`).join('&nbsp;·&nbsp;') || 'StreetSense — pipeline complete';
+
+  renderPredictions(data, data.confirmed_predictions || []);
+  renderPhaseBar(data.phase_info || null);
+  renderMap(data);
+  resetAutoCountdown(); // F3
+}
+
+// ============================================================
+// API LOADERS
+// ============================================================
+async function _load(url, label) {
+  const t0 = Date.now();
+  stopVehicleTracking();   // clear stale vehicle markers before each run
+  setLoading(label);
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (res.status === 429) { clearLoading(); _logEntries.push({ts:'--:--:--',msg:'⚠ '+data.error}); renderLog(); return; }
+    if (data.error) throw new Error(data.error);
+    if (data.warning) { _logEntries.push({ts:'--:--:--',msg:'⚠ '+data.warning}); renderLog(); }
+    document.getElementById('run-time-display').textContent = `${((Date.now()-t0)/1000).toFixed(1)}s`;
+    renderData(data);
+  } catch(e) {
+    document.getElementById('ticker').textContent = 'Error: '+e.message;
+    statusDot.className='dot'; modeLabel.textContent='ERROR';
+    _logEntries.push({ts:'--:--:--',msg:'Error: '+e.message}); renderLog();
+  } finally {
+    clearLoading();
+  }
+}
+
+function loadReplay()  { loadPhase('oct2024_bathurst', 0); }
+function loadFlood()   { loadPhase('july2024_flood',   0); }
+function loadQueenSt() { loadPhase('queen_st_active',  0); }
+function loadDb()      { _currentPhaseScenario = null; _load('/api/db',     'Reading from local DB (air-gapped)…'); }
+function loadLive()    { _currentPhaseScenario = null; _load('/api/state',  'Fetching live Toronto feeds…'); }
+
+async function refreshDbStatus() {
+  try {
+    const r = await fetch('/api/db-status');
+    const d = await r.json();
+    const el = document.getElementById('db-status-badge');
+    el.innerHTML = d.total > 0
+      ? `⬛ DB: <strong style="color:var(--green)">${d.total}</strong> events`
+      : `⬛ DB: <span style="color:var(--amber)">empty</span>`;
+  } catch(e){}
+}
+
+// ============================================================
+// SYSTEM STATUS POLLING — /api/status every 30s
+// ============================================================
+let _statusNextRefreshAt = null;
+
+function _fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-CA', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+async function pollStatus() {
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+    document.getElementById('status-last-run').textContent    = _fmtTime(data.last_run) || '—';
+    document.getElementById('status-cycles').textContent      = data.total_cycles ?? 0;
+    document.getElementById('status-briefs').textContent      = data.active_briefs ?? 0;
+    document.getElementById('status-pending').textContent     = data.pending_dispatches ?? 0;
+    _statusNextRefreshAt = Date.now() + 30000;
+  } catch(e) {}
+}
+
+function _tickStatusCountdown() {
+  if (!_statusNextRefreshAt) return;
+  const secs = Math.max(0, Math.round((_statusNextRefreshAt - Date.now()) / 1000));
+  document.getElementById('status-next-refresh').textContent = secs + 's';
+}
+
+// ============================================================
+// PHASE REPLAY — step through scenario time-slices
+// ============================================================
+let _currentPhaseScenario = null;
+let _currentPhaseIndex    = 0;
+let _totalPhases          = 0;
+
+async function loadPhase(scenario, phaseIdx) {
+  _currentPhaseScenario = scenario;
+  _currentPhaseIndex    = phaseIdx;
+  const names = {oct2024_bathurst:'Bathurst Oct 2024', july2024_flood:'DVP Flood Jul 2024', queen_st_active:'Queen St W'};
+  const label = names[scenario] || scenario;
+  await _load(`/api/replay-phase?scenario=${scenario}&phase=${phaseIdx}`,
+              `Phase ${phaseIdx + 1} — ${label}…`);
+}
+
+async function prevPhase() {
+  if (!_currentPhaseScenario || _currentPhaseIndex <= 0) return;
+  await loadPhase(_currentPhaseScenario, _currentPhaseIndex - 1);
+}
+
+async function nextPhase() {
+  if (!_currentPhaseScenario || _currentPhaseIndex >= _totalPhases - 1) return;
+  await loadPhase(_currentPhaseScenario, _currentPhaseIndex + 1);
+}
+
+async function skipToFinalPhase() {
+  if (!_currentPhaseScenario || _totalPhases < 1) return;
+  await loadPhase(_currentPhaseScenario, _totalPhases - 1);
+}
+
+function renderPhaseBar(phaseInfo) {
+  const bar = document.getElementById('phase-bar');
+  if (!phaseInfo) {
+    bar.classList.remove('visible');
+    return;
+  }
+  _currentPhaseIndex = phaseInfo.current_phase;
+  _totalPhases       = phaseInfo.total_phases;
+
+  document.getElementById('phase-sim-time').textContent   = phaseInfo.sim_time;
+  document.getElementById('phase-step-label').textContent = `PHASE ${phaseInfo.current_phase + 1} / ${phaseInfo.total_phases}`;
+
+  // Slide-in animation on label/description: remove, reflow, re-add
+  bar.classList.remove('phase-entering');
+  void bar.offsetWidth;
+  bar.classList.add('phase-entering');
+  setTimeout(() => bar.classList.remove('phase-entering'), 300);
+
+  document.getElementById('phase-label-text').textContent = phaseInfo.label;
+  document.getElementById('phase-desc-text').textContent  = phaseInfo.description;
+
+  // Segmented dot track
+  const dotsEl = document.getElementById('phase-dots');
+  dotsEl.innerHTML = Array.from({length: phaseInfo.total_phases}, (_, i) => {
+    const cls = i < phaseInfo.current_phase  ? 'phase-dot done'
+              : i === phaseInfo.current_phase ? 'phase-dot current'
+              : 'phase-dot';
+    return `<div class="${cls}"></div>`;
+  }).join('');
+
+  const prevBtn    = document.getElementById('btn-phase-prev');
+  const nextBtn    = document.getElementById('btn-phase-next');
+  const skipBtn    = document.getElementById('btn-phase-skip');
+  const restartBtn = document.getElementById('btn-phase-restart');
+  const isLast     = phaseInfo.current_phase >= phaseInfo.total_phases - 1;
+
+  if (prevBtn)    prevBtn.disabled         = phaseInfo.current_phase <= 0;
+  if (nextBtn)    nextBtn.disabled         = isLast;
+  if (skipBtn)    skipBtn.style.display    = isLast ? 'none'   : 'inline';
+  if (restartBtn) restartBtn.style.display = isLast ? 'inline' : 'none';
+
+  bar.classList.add('visible');
+}
+
+// Keyboard shortcut: → / ← to step phases, Escape to close modal
+document.addEventListener('keydown', e => {
+  if (document.getElementById('modal-311').style.display !== 'none') {
+    if (e.key === 'Escape') closeModal311();
+    return;
+  }
+  if (e.key === 'ArrowRight') nextPhase();
+  if (e.key === 'ArrowLeft')  prevPhase();
+});
+
+// ============================================================
+// 311 SUBMIT FORM
+// ============================================================
+let _311LocationMarker = null;
+
+function openModal311() {
+  document.getElementById('modal-311').style.display         = 'flex';
+  document.getElementById('result-311').style.display        = 'none';
+  document.getElementById('modal-311-loading').style.display = 'none';
+  document.getElementById('form-311-body').style.display     = 'block';
+}
+
+function closeModal311() {
+  document.getElementById('modal-311').style.display = 'none';
+  if (_311LocationMarker) { _markerLayer.removeLayer(_311LocationMarker); _311LocationMarker = null; }
+}
+
+const _311_PRESETS = {
+  watermain: {
+    service_type: 'Watermain-Possible Break',
+    address: 'King St W & Bathurst St, Toronto, ON',
+    description: 'Watermain-Possible Break',
+    ward: 'Ward 10 - Spadina-Fort York',
+    lat: 43.6443, lng: -79.4035,
+  },
+  flooding: {
+    service_type: 'Catch Basin - Blocked / Flooding',
+    address: 'Spadina Ave & Fort York Blvd, Toronto, ON',
+    description: 'Catch Basin - Blocked / Flooding',
+    ward: 'Ward 10 - Spadina-Fort York',
+    lat: 43.6392, lng: -79.3952,
+  },
+  pothole: {
+    service_type: 'Roadway Maintenance - Pothole',
+    address: 'Danforth Ave & Main St, Toronto, ON',
+    description: 'Large deep pothole in the eastbound right lane blocking traffic flow right before the bus stop pad.',
+    ward: 'Ward 19 - Beaches-East York',
+    lat: 43.6864, lng: -79.3012,
+  },
+};
+
+function prefill311(type) {
+  const p = _311_PRESETS[type];
+  if (!p) return;
+  document.getElementById('f311-service-type').value = p.service_type;
+  document.getElementById('f311-address').value       = p.address;
+  document.getElementById('f311-desc').value          = p.description;
+  document.getElementById('f311-ward').value          = p.ward;
+  document.getElementById('f311-lat').value           = p.lat;
+  document.getElementById('f311-lng').value           = p.lng;
+  pin311OnMap(p.lat, p.lng, p.address);
+}
+
+function pin311OnMap(lat, lng, label) {
+  if (_311LocationMarker) _markerLayer.removeLayer(_311LocationMarker);
+  _311LocationMarker = L.circleMarker([lat, lng], {
+    radius: 12, fillColor: '#38bdf8', color: '#fff', weight: 2, opacity: 1, fillOpacity: 0.85,
+  }).bindPopup(`<div class="pop-type" style="color:var(--blue)">📋 New 311 Ticket</div><div class="pop-addr">${label}</div>`)
+    .addTo(_markerLayer);
+  map.setView([lat, lng], 15);
+}
+
+async function locate311() {
+  const address = document.getElementById('f311-address').value.trim();
+  if (!address) return;
+  const btn = document.querySelector('.btn-locate');
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  try {
+    const res  = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+    const data = await res.json();
+    if (data.error) { alert('Could not locate: ' + data.error); return; }
+    document.getElementById('f311-lat').value = data.lat.toFixed(4);
+    document.getElementById('f311-lng').value = data.lng.toFixed(4);
+    pin311OnMap(data.lat, data.lng, address);
+  } catch(e) { alert('Geocoding failed: ' + e.message); }
+  finally { if (btn) { btn.textContent = 'Locate'; btn.disabled = false; } }
+}
+
+async function submit311() {
+  const serviceType = document.getElementById('f311-service-type').value;
+  const address     = document.getElementById('f311-address').value.trim();
+  const lat         = parseFloat(document.getElementById('f311-lat').value) || null;
+  const lng         = parseFloat(document.getElementById('f311-lng').value) || null;
+  const desc        = document.getElementById('f311-desc').value.trim() || serviceType;
+  const ward        = document.getElementById('f311-ward').value.trim();
+
+  if (!address && (!lat || !lng)) {
+    alert('Please enter an address or click Locate to set coordinates.');
+    return;
+  }
+
+  const submitBtn = document.getElementById('btn-submit-311-form');
+  submitBtn.disabled    = true;
+  submitBtn.textContent = '⟳ Analysing…';
+  document.getElementById('form-311-body').style.display     = 'none';
+  document.getElementById('modal-311-loading').style.display = 'flex';
+
+  try {
+    const res  = await fetch('/api/submit-311', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({service_type: serviceType, address, lat, lng, description: desc, ward}),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const ev = data.submitted_event || {};
+    document.getElementById('result-311-sr').textContent   = ev.service_request_id || '';
+    document.getElementById('result-311-type').textContent = serviceType;
+    document.getElementById('result-311-addr').textContent = address;
+
+    const hasPredict = data.predicted_cascades && data.predicted_cascades.length > 0;
+    let predHtml = '';
+    if (hasPredict) {
+      predHtml = data.predicted_cascades.map(pc => {
+        const impacts = (pc.predicted_impacts||[]).map(i=>`<div style="margin:1px 0">· ${i}</div>`).join('');
+        const dispatches = (pc.recommended_dispatches||[]).map(d =>
+          `<div style="margin-top:5px;padding:5px 8px;background:var(--bg2);border:1px solid var(--border)">
+             <span style="font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber)">${d.priority}</span>
+             <span style="font-size:11px;color:var(--text);margin-left:6px">${d.target_department}</span>
+             <div style="font-size:10px;color:var(--text-dim);margin-top:2px">${d.message}</div>
+           </div>`
+        ).join('');
+        return `<div class="predict-ai-card">
+          <div class="predict-ai-label">⚡ AI PREDICTION — Confidence ${Math.round(pc.confidence*100)}%</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${impacts}</div>
+          <div style="font-size:10px;color:var(--text-dim);font-style:italic;margin-bottom:4px">${pc.reasoning}</div>
+          ${dispatches}
+        </div>`;
+      }).join('');
+    } else {
+      predHtml = `<div class="predict-ai-clear">✓ No immediate cascade risk detected — ticket queued for routine response.</div>`;
+    }
+    document.getElementById('result-311-predictions').innerHTML = predHtml;
+    document.getElementById('modal-311-loading').style.display = 'none';
+    document.getElementById('result-311').style.display        = 'block';
+
+    // Reflect the new event on the main dashboard map
+    renderData(data);
+  } catch(e) {
+    document.getElementById('modal-311-loading').style.display = 'none';
+    document.getElementById('form-311-body').style.display     = 'block';
+    alert('Submit failed: ' + e.message);
+  } finally {
+    submitBtn.disabled    = false;
+    submitBtn.textContent = 'Submit Service Request';
+  }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('load', () => {
+  requestNotificationPermission(); // F2
+  refreshDbStatus();
+  setInterval(refreshDbStatus, 30000);
+  pollStatus();
+  setInterval(pollStatus, 30000);
+  setInterval(_tickStatusCountdown, 1000);
+});
+</script>
+
+<!-- 311 Service Request Modal -->
+<div id="modal-311" style="display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;">
+  <div class="modal-overlay" onclick="closeModal311()"></div>
+  <div class="modal-311">
+    <div class="modal-header-311">
+      <div>
+        <div class="modal-city-label">City of Toronto</div>
+        <div class="modal-title">311 — Service Request</div>
+        <div class="modal-subtitle">Infrastructure &amp; Public Works</div>
+      </div>
+      <button class="modal-close" onclick="closeModal311()">✕</button>
+    </div>
+
+    <div id="form-311-body">
+      <div class="form-311">
+        <!-- Quick demo prefills -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;padding-bottom:4px;border-bottom:1px solid var(--border)">
+          <span style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);align-self:center">Demo fill:</span>
+          <button class="btn" style="font-size:10px;padding:3px 10px" onclick="prefill311('watermain')">🚰 Watermain Break</button>
+          <button class="btn" style="font-size:10px;padding:3px 10px" onclick="prefill311('flooding')">🌊 Flooding</button>
+          <button class="btn" style="font-size:10px;padding:3px 10px" onclick="prefill311('pothole')">🕳 Pothole</button>
+        </div>
+
+        <div class="field-311">
+          <label>Service Type</label>
+          <select id="f311-service-type">
+            <optgroup label="Water &amp; Drainage">
+              <option value="Watermain-Possible Break">Watermain-Possible Break</option>
+              <option value="Watermain Break-Confirmed">Watermain Break-Confirmed</option>
+              <option value="Catch Basin - Blocked / Flooding">Catch Basin - Blocked / Flooding</option>
+              <option value="Road Water Ponding">Road Water Ponding</option>
+              <option value="Street Flooding - Major">Street Flooding - Major</option>
+              <option value="Maintenance Hole - Overflowing">Maintenance Hole - Overflowing</option>
+              <option value="Sewer Main-Backup">Sewer Main-Backup</option>
+            </optgroup>
+            <optgroup label="Transportation">
+              <option value="Roadway Maintenance - Pothole" selected>Roadway Maintenance - Pothole</option>
+              <option value="Sidewalk Maintenance">Sidewalk Maintenance</option>
+              <option value="Traffic Signal - Malfunctioning">Traffic Signal - Malfunctioning</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="addr-row-311">
+          <div class="field-311">
+            <label>Location / Address</label>
+            <input id="f311-address" type="text" placeholder="e.g. King St W &amp; Bathurst St, Toronto, ON" />
+          </div>
+          <button class="btn-locate" onclick="locate311()">Locate</button>
+        </div>
+
+        <div class="field-row-311">
+          <div class="field-311">
+            <label>Ward (optional)</label>
+            <input id="f311-ward" type="text" placeholder="e.g. Ward 10 - Spadina-Fort York" />
+          </div>
+          <div class="field-311" style="flex:0 0 90px">
+            <label>Lat</label>
+            <input id="f311-lat" type="text" placeholder="43.6…" />
+          </div>
+          <div class="field-311" style="flex:0 0 90px">
+            <label>Lng</label>
+            <input id="f311-lng" type="text" placeholder="-79.4…" />
+          </div>
+        </div>
+
+        <div class="field-311">
+          <label>Additional Details</label>
+          <textarea id="f311-desc" placeholder="Describe the issue…"></textarea>
+        </div>
+
+        <button id="btn-submit-311-form" class="btn-submit-311" onclick="submit311()">Submit Service Request</button>
+      </div>
+    </div>
+
+    <!-- Loading state while StreetSense analyses the request -->
+    <div id="modal-311-loading" class="modal-311-loading" style="display:none">
+      <div class="loading-line-1">Submitting request to 311…</div>
+      <div class="loading-line-2">Routing to StreetSense AI…</div>
+    </div>
+
+    <!-- Result shown after successful submit -->
+    <div id="result-311" style="display:none" class="result-311">
+      <div class="result-311-label">✓ Service Request Filed</div>
+      <div class="result-311-sr">
+        SR#: <span class="sr-number" id="result-311-sr"></span>
+        &nbsp;—&nbsp;<span id="result-311-type" style="color:var(--text-dim)"></span>
+      </div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px" id="result-311-addr"></div>
+      <div style="font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);margin-bottom:8px">⚡ StreetSense Analysis</div>
+      <div id="result-311-predictions"></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn" style="font-size:10px"
+          onclick="document.getElementById('result-311').style.display='none';document.getElementById('modal-311-loading').style.display='none';document.getElementById('form-311-body').style.display='block'">
+          Submit Another
+        </button>
+        <button class="btn" style="font-size:10px" onclick="closeModal311()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "scenario_id": "malformed_feed",
+  "description": "Adversarial: simulates the Toronto road restrictions API returning records with invalid JSON escape sequences, missing fields, wrong types, and null values. The ingestion layer must handle all of these without crashing.",
+  "records": [
+    {
+      "id": "RR-BAD-001",
+      "location": "King St \\W at Spadina",
+      "latitude": "not_a_float",
+      "longitude": null,
+      "work_type": ""
+    },
+    {
+      "id": "RR-BAD-002",
+      "location": "Queen St \\E & \\Broadview",
+      "latitude": -999.0,
+      "longitude": -999.0,
+      "work_type": "Road Closure"
+    },
+    {
+      "id": null,
+      "latitude": 99.9999,
+      "longitude": -200.0,
+      "work_type": "Watermain — coordinates outside any valid range"
+    },
+    {
+      "id": "RR-BAD-004",
+      "location": "Bathurst St",
+      "latitude": 43.7115,
+      "longitude": -79.4317,
+      "work_type": "Emergency - Watermain Break",
+      "description": "Valid record mixed in with bad ones — must still be parsed correctly"
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "scenario_id": "july2024_flood",
+  "description": "Billion-Dollar Flash Flood, July 16 2024. Intense rainfall (100mm+) over 3 hours completely overloads drainage infrastructure, shutting down the DVP, flooding Union Station, and spawning thousands of 311 distress calls simultaneously.",
+  "events": [
+    {
+      "event_id": "311-2024-0716-1001",
+      "source": "requests_311",
+      "event_type": "catch_basin_flooding",
+      "latitude": 43.6612,
+      "longitude": -79.3621,
+      "address": "Bayview Ave & River St, Toronto, ON",
+      "description": "Catch Basin - Blocked / Flooding",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T12:45:00+00:00",
+      "source_id": "311-89101",
+      "metadata": {"ward": "13", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1002",
+      "source": "requests_311",
+      "event_type": "road_flooding",
+      "latitude": 43.6592,
+      "longitude": -79.3551,
+      "address": "Don Valley Parkway / Bayview Ave Ramps",
+      "description": "Road Water Ponding",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T13:15:00+00:00",
+      "source_id": "311-89105",
+      "metadata": {"ward": "13", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1003",
+      "source": "requests_311",
+      "event_type": "manhole_hazard",
+      "latitude": 43.6421,
+      "longitude": -79.3768,
+      "address": "Yonge St & Lakeshore Blvd, Toronto, ON",
+      "description": "Maintenance Hole - Overflowing",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T13:30:00+00:00",
+      "source_id": "311-89112",
+      "metadata": {"ward": "10", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1004",
+      "source": "requests_311",
+      "event_type": "catch_basin_flooding",
+      "latitude": 43.6392,
+      "longitude": -79.3952,
+      "address": "Spadina Ave & Fort York Blvd, Toronto, ON",
+      "description": "Catch Basin - Blocked / Flooding",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T13:45:00+00:00",
+      "source_id": "311-89120",
+      "metadata": {"ward": "10", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1005",
+      "source": "requests_311",
+      "event_type": "road_flooding",
+      "latitude": 43.6355,
+      "longitude": -79.4214,
+      "address": "Lake Shore Blvd W & British Columbia Road",
+      "description": "Road Water Ponding",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T14:10:00+00:00",
+      "source_id": "311-89132",
+      "metadata": {"ward": "4", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1006",
+      "source": "requests_311",
+      "event_type": "basement_flooding",
+      "latitude": 43.6453,
+      "longitude": -79.3806,
+      "address": "Front St W & University Ave, Toronto, ON",
+      "description": "Sewer main-Backup",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T14:30:00+00:00",
+      "source_id": "311-89140",
+      "metadata": {"ward": "10", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1007",
+      "source": "requests_311",
+      "event_type": "basement_flooding",
+      "latitude": 43.6465,
+      "longitude": -79.4082,
+      "address": "Queen St W & Claremont St, Toronto, ON",
+      "description": "Sewer main-Backup",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T15:00:00+00:00",
+      "source_id": "311-89155",
+      "metadata": {"ward": "10", "status": "Open"}
+    },
+    {
+      "event_id": "311-2024-0716-1008",
+      "source": "requests_311",
+      "event_type": "road_flooding",
+      "latitude": 43.6441,
+      "longitude": -79.3712,
+      "address": "Gardiner Expressway Westbound / Jarvis St Exit",
+      "description": "Road Water Ponding",
+      "severity_raw": 2,
+      "timestamp": "2024-07-16T15:15:00+00:00",
+      "source_id": "311-89162",
+      "metadata": {"ward": "10", "status": "Open"}
+    }
+  ],
+  "phases": [
+    {
+      "phase_index": 0,
+      "label": "First Wave — Flooding Reports",
+      "sim_time": "12:45",
+      "sim_offset_min": 0,
+      "description": "First wave of 311 calls: catch basins flooding near Don Valley, manholes overflowing near Lakeshore. StreetSense fires predictions for each flooding event — stormwater crews dispatched proactively.",
+      "event_ids": ["311-2024-0716-1001", "311-2024-0716-1002", "311-2024-0716-1003", "311-2024-0716-1004"],
+      "new_event_ids": ["311-2024-0716-1001", "311-2024-0716-1002", "311-2024-0716-1003", "311-2024-0716-1004"]
+    },
+    {
+      "phase_index": 1,
+      "label": "Flood Spreading — 7 Reports",
+      "sim_time": "14:10",
+      "sim_offset_min": 85,
+      "description": "Flood spreading west across downtown. Lakeshore, Front St, and Queen St all reporting within 2 hours. Pattern emerging — but departments still working in silos.",
+      "event_ids": ["311-2024-0716-1001", "311-2024-0716-1002", "311-2024-0716-1003", "311-2024-0716-1004", "311-2024-0716-1005", "311-2024-0716-1006", "311-2024-0716-1007"],
+      "new_event_ids": ["311-2024-0716-1005", "311-2024-0716-1006", "311-2024-0716-1007"]
+    },
+    {
+      "phase_index": 2,
+      "label": "Citywide Emergency — 8 Reports",
+      "sim_time": "15:15",
+      "sim_offset_min": 150,
+      "description": "8 flooding events across Toronto within 2.5 hours. StreetSense's citywide flood cluster triggers SEV 7/10 emergency brief. Emergency Management + Toronto Water dispatched city-wide — 2.5 hours of data, one brief.",
+      "event_ids": ["311-2024-0716-1001", "311-2024-0716-1002", "311-2024-0716-1003", "311-2024-0716-1004", "311-2024-0716-1005", "311-2024-0716-1006", "311-2024-0716-1007", "311-2024-0716-1008"],
+      "new_event_ids": ["311-2024-0716-1008"]
+    }
+  ]
+}

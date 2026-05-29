@@ -1,0 +1,74 @@
+{
+  "scenario_id": "oct2024_bathurst",
+  "description": "Three watermain break reports on Bathurst St within one hour, Oct 2 2024. 511 streetcar disrupted. Three departments had pieces — nobody coordinated.",
+  "events": [
+    {
+      "event_id": "311-2024-bathurst-prue-001",
+      "source": "requests_311",
+      "event_type": "watermain_break",
+      "latitude": 43.7115,
+      "longitude": -79.4317,
+      "address": "Bathurst St & Prue Ave, Toronto, ON",
+      "description": "Watermain-Possible Break",
+      "severity_raw": 2,
+      "timestamp": "2024-10-02T08:43:00+00:00",
+      "source_id": "311-88001",
+      "metadata": {"ward": "8", "status": "Open"}
+    },
+    {
+      "event_id": "RR-2024-88421",
+      "source": "road_restrictions",
+      "event_type": "road_closure",
+      "latitude": 43.7118,
+      "longitude": -79.4315,
+      "address": "Bathurst St from Prue Ave to Glencairn Ave",
+      "description": "Emergency - Watermain Break",
+      "severity_raw": 3,
+      "timestamp": "2024-10-02T09:00:00+00:00",
+      "source_id": "RR-2024-88421",
+      "metadata": {"contractor": "City of Toronto - Water Services"}
+    },
+    {
+      "event_id": "ttc-alert-511-20241002",
+      "source": "ttc_alerts",
+      "event_type": "transit_disruption",
+      "latitude": 43.7120,
+      "longitude": -79.4310,
+      "address": "Bathurst St at Prue Ave",
+      "description": "511 Bathurst: Diverting via Davenport",
+      "severity_raw": 2,
+      "timestamp": "2024-10-02T09:15:00+00:00",
+      "source_id": "ttc-alert-511-20241002",
+      "metadata": {"route_id": "511", "stop_id": "14321"}
+    }
+  ],
+  "phases": [
+    {
+      "phase_index": 0,
+      "label": "311 Call — Watermain Break",
+      "sim_time": "08:43",
+      "sim_offset_min": 0,
+      "description": "Resident calls 311: watermain break on Bathurst St. StreetSense fires a proactive prediction immediately — before Transportation Services or TTC know anything.",
+      "event_ids": ["311-2024-bathurst-prue-001"],
+      "new_event_ids": ["311-2024-bathurst-prue-001"]
+    },
+    {
+      "phase_index": 1,
+      "label": "Road Restriction Posted",
+      "sim_time": "09:00",
+      "sim_offset_min": 17,
+      "description": "Transportation Services posts emergency road closure on Bathurst St. A 2-event cluster forms. StreetSense's earlier prediction is partially confirmed.",
+      "event_ids": ["311-2024-bathurst-prue-001", "RR-2024-88421"],
+      "new_event_ids": ["RR-2024-88421"]
+    },
+    {
+      "phase_index": 2,
+      "label": "TTC Alert Issued — Cascade Confirmed",
+      "sim_time": "09:15",
+      "sim_offset_min": 32,
+      "description": "TTC issues 511 Bathurst diversion alert. Full watermain→road→TTC cascade confirmed. StreetSense brief generated — predicted this 32 minutes ago.",
+      "event_ids": ["311-2024-bathurst-prue-001", "RR-2024-88421", "ttc-alert-511-20241002"],
+      "new_event_ids": ["ttc-alert-511-20241002"]
+    }
+  ]
+}

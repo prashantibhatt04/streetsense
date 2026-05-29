@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+
+# Runtime data (generated at run time — not source)
+streetsense.db
+dispatch_log.json
+geocode_cache.json
+
+# GTFS cache (downloaded via scripts/download_gtfs.py — ~5MB)
+gtfs_cache/
+
+# macOS
+.DS_Store
+
+# Local Claude Code settings (machine-specific permissions)
+.claude/settings.local.json
