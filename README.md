@@ -50,6 +50,8 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 pip install anthropic
 
+python3 -m scripts.download_gtfs   # downloads TTC route/stop data (~5MB, one-time)
+
 cp .env.example .env
 # Edit .env — uncomment ANTHROPIC_API_KEY and set your key
 
