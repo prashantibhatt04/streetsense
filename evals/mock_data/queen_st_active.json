@@ -11,7 +11,7 @@
       "address": "Queen St W & Roncesvalles Ave, Toronto, ON",
       "description": "Watermain replacement — Toronto Water permit UC-2026-0412. Full road closure required.",
       "severity_raw": 3,
-      "timestamp": "2026-05-28T08:00:00+00:00",
+      "timestamp": "2026-05-28T12:00:00+00:00",
       "source_id": "UC-2026-0412",
       "metadata": {"client_name": "Toronto Water", "status": "Active"}
     },
@@ -24,7 +24,7 @@
       "address": "Queen St W & Roncesvalles Ave, Toronto, ON",
       "description": "Watermain-Possible Break — water flowing from pavement near Roncesvalles",
       "severity_raw": 3,
-      "timestamp": "2026-05-28T08:35:00+00:00",
+      "timestamp": "2026-05-28T12:35:00+00:00",
       "source_id": "311-2026-44201",
       "metadata": {"ward": "4", "status": "Open"}
     },
@@ -37,7 +37,7 @@
       "address": "Queen St W between Roncesvalles Ave and Beaty Ave",
       "description": "Emergency road closure — watermain replacement in progress. Both lanes closed.",
       "severity_raw": 3,
-      "timestamp": "2026-05-28T08:55:00+00:00",
+      "timestamp": "2026-05-28T12:55:00+00:00",
       "source_id": "RR-2026-09987",
       "metadata": {"contractor": "Toronto Water Services"}
     },
@@ -50,7 +50,7 @@
       "address": "Queen St W — 501 Streetcar route (Roncesvalles diversion)",
       "description": "Route 501 Queen: Short-turn at Roncesvalles Ave due to road closure. Buses replacing streetcars west of Roncesvalles.",
       "severity_raw": 2,
-      "timestamp": "2026-05-28T09:30:00+00:00",
+      "timestamp": "2026-05-28T13:30:00+00:00",
       "source_id": "ttc-alert-501-20260528",
       "metadata": {"route_id": "501", "stop_id": "14682"}
     }

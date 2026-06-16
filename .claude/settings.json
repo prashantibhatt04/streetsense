@@ -26,7 +26,20 @@
       "Bash(kill -9 4616 4624)",
       "Bash(/usr/local/bin/python3.14 -m pytest tests/test_main.py -v --tb=short)",
       "Bash(/usr/local/bin/python3.14 -m pytest tests/test_dashboard.py -v --tb=short -k \"health\")",
-      "Bash(pkill -f \"python3.14 dashboard/app.py\")"
+      "Bash(pkill -f \"python3.14 dashboard/app.py\")",
+      "Bash(xargs ls)",
+      "Bash(/usr/local/bin/python3.14 -m scripts.download_civic_data)",
+      "Bash(curl -s \"https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=hospitals\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=hospitals\")",
+      "Bash(curl -s -v \"https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=hospitals\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://ckan0.cf.opendata.inter.toronto.ca/api/3/action/package_show?id=hospitals\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://open.toronto.ca/api/3/action/package_show?id=hospitals\")",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/tools/test_civic_tools.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/specs/test_data_contracts.py tests/tools/test_civic_tools.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/agents/test_impact_agent.py tests/agents/test_briefing_agent.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/agents/test_impact_agent.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -c ' *)",
+      "Bash(/usr/local/bin/python3.14 -c \"import agents.prediction_agent; import agents.briefing_agent; print\\('ok'\\)\")"
     ]
   }
 }

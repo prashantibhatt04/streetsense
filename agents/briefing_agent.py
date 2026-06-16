@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from specs.data_contracts import (
     ClusterCandidate, CorrelationResult, ImpactAssessment,
     OperationalBrief, HistoricalMatch, DispatchPayload,
@@ -13,6 +14,14 @@ from state import agent_log
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 5
+
+TORONTO_TZ = ZoneInfo("America/Toronto")
+
+
+def _fmt_local(ts: datetime) -> str:
+    """Format a UTC datetime as Toronto local time for display in briefs."""
+    local = ts.astimezone(TORONTO_TZ)
+    return local.strftime("%H:%M")
 
 # Cascade type → action type mapping for dispatch payload
 _DISPATCH_ACTION = {
@@ -91,6 +100,7 @@ def fallback_brief(cluster: ClusterCandidate, impact: ImpactAssessment,
         estimated_commuters=impact.estimated_commuters,
         affected_routes=impact.affected_routes,
         at_risk_routes=at_risk_routes or [],
+        resident_impact=impact.resident_impact,
     )
 
 
@@ -173,6 +183,7 @@ def generate_brief(
                 estimated_commuters=impact.estimated_commuters,
                 affected_routes=impact.affected_routes,
                 at_risk_routes=correlation.at_risk_routes,
+                resident_impact=impact.resident_impact,
             )
             agent_log.append(f"Brief generated: {brief.headline[:80]}")
             agent_log.append("Dispatch awaiting supervisor approval — click APPROVE in dashboard")

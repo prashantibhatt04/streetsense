@@ -15,6 +15,9 @@ geocode_cache.json
 # GTFS cache (downloaded via scripts/download_gtfs.py — ~5MB)
 gtfs_cache/
 
+# Civic context cache (downloaded via scripts/download_civic_data.py)
+civic_cache/
+
 # macOS
 .DS_Store
 

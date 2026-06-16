@@ -12,6 +12,7 @@ from specs.data_contracts import (
 )
 from tools.llm_tools import call_llm_json
 from tools.gtfs_tools import routes_near_coords as _gtfs_routes_near
+from agents.briefing_agent import _fmt_local
 from config import MODEL
 from state import agent_log
 
@@ -111,7 +112,7 @@ def build_prediction_prompt(event: UnifiedEvent) -> str:
 Type: {event.event_type.value}
 Location: {event.address}
 Description: {event.description}
-Time: {event.timestamp.strftime('%H:%M UTC')}
+Time: {_fmt_local(event.timestamp)} Toronto time
 Known TTC routes on this street: {route_hint}{dept_line}
 
 Based on this single early report:

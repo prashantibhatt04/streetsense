@@ -11,7 +11,7 @@
       "address": "Bathurst St & Prue Ave, Toronto, ON",
       "description": "Watermain-Possible Break",
       "severity_raw": 2,
-      "timestamp": "2024-10-02T08:43:00+00:00",
+      "timestamp": "2024-10-02T12:43:00+00:00",
       "source_id": "311-88001",
       "metadata": {"ward": "8", "status": "Open"}
     },
@@ -24,7 +24,7 @@
       "address": "Bathurst St from Prue Ave to Glencairn Ave",
       "description": "Emergency - Watermain Break",
       "severity_raw": 3,
-      "timestamp": "2024-10-02T09:00:00+00:00",
+      "timestamp": "2024-10-02T13:00:00+00:00",
       "source_id": "RR-2024-88421",
       "metadata": {"contractor": "City of Toronto - Water Services"}
     },
@@ -37,7 +37,7 @@
       "address": "Bathurst St at Prue Ave",
       "description": "511 Bathurst: Diverting via Davenport",
       "severity_raw": 2,
-      "timestamp": "2024-10-02T09:15:00+00:00",
+      "timestamp": "2024-10-02T13:15:00+00:00",
       "source_id": "ttc-alert-511-20241002",
       "metadata": {"route_id": "511", "stop_id": "14321"}
     }

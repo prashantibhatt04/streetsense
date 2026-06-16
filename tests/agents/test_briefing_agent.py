@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import patch
 from agents.briefing_agent import (
     summarise_correlation,
@@ -7,6 +8,7 @@ from agents.briefing_agent import (
     generate_brief,
     generate_batch,
     build_dispatch,
+    _fmt_local,
 )
 from specs.data_contracts import OperationalBrief, ImpactAssessment
 from config import MODEL
@@ -147,3 +149,16 @@ def test_build_dispatch_watermain_cascade_action(bathurst_cluster, causal_correl
     payload = build_dispatch(brief, causal_correlation)
     assert payload.action_type == "suggest_ttc_short_turn"
     assert "Toronto Water" in payload.target_department
+
+
+# --- _fmt_local ---
+
+def test_fmt_local_converts_utc_to_edt_morning():
+    # 12:43 UTC = 08:43 EDT
+    ts = datetime(2024, 10, 2, 12, 43, tzinfo=timezone.utc)
+    assert _fmt_local(ts) == "08:43"
+
+def test_fmt_local_converts_utc_to_edt_on_the_hour():
+    # 13:00 UTC = 09:00 EDT
+    ts = datetime(2024, 10, 2, 13, 0, tzinfo=timezone.utc)
+    assert _fmt_local(ts) == "09:00"

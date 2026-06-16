@@ -77,6 +77,15 @@ def replay(scenario_name: str) -> PipelineState:
         print("\nRecommended actions:")
         for action in brief.recommended_actions:
             print(f"  • {action}")
+        ri = brief.resident_impact
+        if ri:
+            print(f"\nHuman Impact: {ri.score}/10")
+            print(f"  Commuters affected:    {ri.commuters_affected:,}")
+            print(f"  Nearby hospitals:      {ri.nearby_hospitals or 'none'}")
+            print(f"  Nearby schools:        {ri.nearby_schools or 'none'}")
+            print(f"  Neighbourhood pop:     {ri.neighbourhood_population:,}")
+            print(f"  Peak hours:            {ri.is_peak_hours}")
+            print(f"  Factors:               {ri.factors}")
 
     if state.errors:
         print(f"\nErrors: {state.errors}")

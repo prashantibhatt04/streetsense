@@ -54,6 +54,21 @@ def test_bathurst_scenario_time_window():
     assert clusters[0].time_window_minutes <= 60
 
 
+def test_bathurst_scenario_timestamps_are_morning_edt_in_utc():
+    """Event timestamps store Toronto local time correctly offset to UTC —
+    08:00-10:00 EDT should appear as 12:00-14:00 UTC."""
+    events = load_scenario("oct2024_bathurst.json")
+    for e in events:
+        assert 12 <= e.timestamp.hour < 14
+
+
+def test_bathurst_scenario_first_event_is_peak_hours():
+    from agents.impact_agent import _is_peak_hours
+    events = load_scenario("oct2024_bathurst.json")
+    earliest = min(events, key=lambda e: e.timestamp)
+    assert _is_peak_hours(earliest.timestamp) is True
+
+
 # --- single_event adversarial ---
 
 def test_single_event_scenario_no_clusters():

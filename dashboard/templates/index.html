@@ -82,6 +82,8 @@
   .sev-badge{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:0.1em;padding:2px 6px;background:var(--amber-glow);color:var(--amber);border:1px solid var(--amber-dim);white-space:nowrap;}
   .sev-badge.high{background:#ef444422;color:var(--red);border-color:#7f1d1d;}
   .sev-badge.low{background:#22c55e22;color:var(--green);border-color:#14532d;}
+  .sev-badge.human-impact{border-style:dashed;}
+  .human-impact-meta{color:var(--text-dim);}
   .brief-headline{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--text);line-height:1.3;}
   .brief-body{color:var(--text-dim);font-size:11px;line-height:1.4;margin-bottom:5px;}
   .brief-meta{display:flex;gap:10px;font-size:10px;color:var(--text-dim);margin-bottom:5px;}
@@ -955,15 +957,26 @@ function renderData(data) {
         </div>
       </div>` : '';
     const risk = renderCascadeRisk(b);
+    const ri = b.resident_impact;
+    const hic = ri ? sevClass(ri.score) : '';
+    const humanBadge = ri ? `<span class="sev-badge human-impact ${hic}">HUMAN IMPACT ${ri.score}/10</span>` : '';
+    const riParts = [];
+    if (ri?.commuters_affected) riParts.push(`${ri.commuters_affected.toLocaleString()} commuters`);
+    if (ri?.nearby_hospitals?.length) riParts.push(ri.nearby_hospitals.join(', '));
+    if (ri?.nearby_schools?.length) riParts.push(ri.nearby_schools.join(', '));
+    if (ri?.is_peak_hours) riParts.push('Peak hours');
+    const humanMeta = riParts.length ? `<div class="brief-meta human-impact-meta">${riParts.map(p=>`<span>${p}</span>`).join('')}</div>` : '';
     return `<div class="brief-card sev-${sc}">
       <div class="brief-header">
         <span class="sev-badge ${sc}">SEV ${b.severity}/10</span>
+        ${humanBadge}
         <div class="brief-headline">${b.headline}</div>
       </div>
       <div class="brief-meta">
         ${commHtml ? `<span>${commHtml}</span>` : ''}
         ${routeHtml ? `<span>${routeHtml}</span>` : ''}
       </div>
+      ${humanMeta}
       <div class="brief-body">${b.body}</div>
       <div class="brief-actions">${(b.actions||[]).map(a=>`<span class="action-tag">${a}</span>`).join('')}</div>
       ${risk}${hist}

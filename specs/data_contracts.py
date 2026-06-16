@@ -101,6 +101,16 @@ class CorrelationResult(BaseModel):
     at_risk_routes: list[str] = Field(default_factory=list)  # F6: routes near cluster with no alert yet
 
 
+class ResidentImpactScore(BaseModel):
+    score: int = Field(ge=0, le=10)
+    commuters_affected: int = Field(ge=0)
+    nearby_hospitals: list[str] = Field(default_factory=list)   # names only
+    nearby_schools: list[str] = Field(default_factory=list)      # names only
+    neighbourhood_population: int = Field(ge=0)
+    is_peak_hours: bool
+    factors: list[str] = Field(default_factory=list)  # human-readable scoring reasons
+
+
 class ImpactAssessment(BaseModel):
     cluster_id: str
     severity_score: int = Field(ge=0, le=10)
@@ -109,6 +119,7 @@ class ImpactAssessment(BaseModel):
     estimated_duration_hours: float = Field(ge=0)
     recommended_actions: list[str] = Field(default_factory=list)
     score_breakdown: dict[str, Any] = Field(default_factory=dict)
+    resident_impact: Optional[ResidentImpactScore] = None
 
 
 class HistoricalMatch(BaseModel):
@@ -134,6 +145,7 @@ class OperationalBrief(BaseModel):
     estimated_commuters: int = Field(default=0, ge=0)
     affected_routes: list[str] = Field(default_factory=list)
     at_risk_routes: list[str] = Field(default_factory=list)  # F6
+    resident_impact: Optional[ResidentImpactScore] = None
 
 
 class DispatchRecommendation(BaseModel):

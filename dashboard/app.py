@@ -122,6 +122,14 @@ def _serialise_state(state: PipelineState, mode: str = "live") -> dict:
             "affected_routes": b.affected_routes,
             "at_risk_routes": b.at_risk_routes,
             "historical_match": hist,
+            "resident_impact": {
+                "score": b.resident_impact.score,
+                "commuters_affected": b.resident_impact.commuters_affected,
+                "nearby_hospitals": b.resident_impact.nearby_hospitals,
+                "nearby_schools": b.resident_impact.nearby_schools,
+                "is_peak_hours": b.resident_impact.is_peak_hours,
+                "factors": b.resident_impact.factors,
+            } if b.resident_impact else None,
         })
 
     clusters = []
