@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Always use `/usr/local/bin/python3.14` — the system `python3` (Homebrew 3.14) lacks Flask and other dependencies.
 
 ```bash
-/usr/local/bin/python3.14 -m pytest tests/ -v --tb=short        # full suite (354 tests)
+/usr/local/bin/python3.14 -m pytest tests/ -v --tb=short        # full suite (391 tests)
 /usr/local/bin/python3.14 -m pytest tests/agents/test_prediction_agent.py -v --tb=short  # single file
 /usr/local/bin/python3.14 dashboard/app.py                       # start dashboard on :5001
 /usr/local/bin/python3.14 main.py --mode db                      # single pipeline run from SQLite
@@ -27,9 +27,11 @@ STREETSENSE_MODEL=mistral-nemo:latest /usr/local/bin/python3.14 dashboard/app.py
 OLLAMA_BASE_URL=http://other-host:11434 ...
 ```
 
-All LLM calls use `tools/llm_tools.py:call_llm_json()` with `temperature=0.1` and `timeout=60s`. Every agent has `MAX_ITERATIONS = 2` and a deterministic heuristic fallback — agents never raise even if Ollama is down.
+All LLM calls use `tools/llm_tools.py:call_llm_json()` with `temperature=0.1` and `timeout=60s`. Most agents have `MAX_ITERATIONS = 2`; `briefing_agent` uses `MAX_ITERATIONS = 5`. All agents have a deterministic heuristic fallback — agents never raise even if Ollama is down.
 
 **Heuristic fallback behaviour:** When the LLM fails or times out, `correlation_agent.py:heuristic_correlation()` reads event types from the cluster and maps them to a cascade type deterministically (e.g. `{watermain_break, road_closure, transit_disruption}` → `watermain_to_road_to_ttc`, confidence=0.80). This guarantees `is_causal=True` and `confidence >= 0.80` even with Ollama down.
+
+**Known bug — `heuristic_correlation` utility_to_road path is dead code:** `heuristic_correlation()` checks `has_utility = "utility_cut" in types` but `EventType.UTILITY_WORK` has value `"utility_work"`. `"utility_cut"` is never in the type set, so the `utility_to_road` branch can never fire heuristically. The queen_st scenario falls back to `is_causal=False` when LLM is down instead of detecting the cascade. Fix: change `"utility_cut"` to `"utility_work"` in `correlation_agent.py:heuristic_correlation()`.
 
 ## Architecture
 
@@ -59,7 +61,13 @@ Toronto APIs / SQLite DB
 
 Orchestrated by `state/graph.py:run_pipeline()`. State is immutable (`PipelineState` in `state/schema.py`) — every node returns a new copy via `with_*()` methods.
 
-**Important:** `evals/replay.py` and `dashboard/app.py:api_replay()` both call all nodes including `prediction_node` and `dispatch_node`. If you add a new node to `run_pipeline()`, also add it to both replay paths.
+`cluster_node` runs a **second flood-clustering pass** via `geo_tools.flood_cluster_pass()` using `FLOOD_CLUSTER_WINDOW_HOURS = 3` — groups citywide flooding/sewer_backup events that didn't form a local 300m cluster.
+
+**Important:** `evals/replay.py`, `dashboard/replay.py`, and `dashboard/app.py:api_replay()` all call all nodes including `prediction_node` and `dispatch_node`. If you add a new node to `run_pipeline()`, also add it to all three replay paths.
+
+`agents/supervisor.py:SupervisorAgent` wraps `run_pipeline()` with per-cycle logging and run counting — thin orchestration layer, does no reasoning itself.
+
+`agents/memory_agent.py:MemoryAgent` — overnight batch agent (cron 02:00). Reads yesterday's `cluster_log` rows, writes/increments `pattern_memory` rows so `BriefingAgent` can surface historical matches. Run manually: `python3 -m agents.memory_agent`. Never runs during live pipeline.
 
 ### Key Design Contracts
 
@@ -79,7 +87,7 @@ Orchestrated by `state/graph.py:run_pipeline()`. State is immutable (`PipelineSt
 
 Has `created_at` (default=UTC now) and `updated_at: Optional[datetime] = None`. When serializing to JSON always use `model_dump(mode='json')` — plain `model_dump()` leaves datetime objects unserialised and will crash `json.dumps`.
 
-### Data Sources (4 Toronto feeds)
+### Data Sources (5 Toronto feeds)
 
 | Feed | Module | Notes |
 |---|---|---|
@@ -87,6 +95,7 @@ Has `created_at` (default=UTC now) and `updated_at: Optional[datetime] = None`. 
 | Road restrictions | `ingestion/feeds/road_restrictions.py` | JSON, has native lat/lng |
 | TTC alerts | `ingestion/feeds/ttc_alerts.py` | GTFS-RT protobuf |
 | Utility cuts | `ingestion/feeds/utility_cuts.py` | CSV; requires geocoding |
+| TTC vehicle positions | `ingestion/feeds/ttc_vehicles.py` | Umoiq/NextBus JSON; polled every 30s by dashboard `/api/vehicles` for live map animation |
 
 Geocoding uses Nominatim with a 1s rate limit (`NOMINATIM_RATE_LIMIT`). Results cached in `geocode_cache.json`.
 
@@ -122,13 +131,22 @@ Always mock `call_llm_json` in agent tests — never hit Ollama in unit/integrat
 Flask app at `dashboard/app.py`, single template at `dashboard/templates/index.html`.
 
 Key API endpoints:
-- `GET /api/replay?scenario=oct2024_bathurst` — runs mock scenario (auto-loads on page open)
+- `GET /api/replay?scenario=oct2024_bathurst` — runs full mock scenario (all events)
+- `GET /api/replay-phase?scenario=X&phase=N` — runs scenario up to phase N; returns `phase_info` + `confirmed_predictions`
 - `GET /api/db` — runs pipeline from SQLite
 - `GET /api/state` — runs live pipeline against Toronto APIs
 - `GET /api/status` — system status: last_run, total_cycles, active_briefs, pending_dispatches
-- `POST /api/approve/<cluster_id>` / `POST /api/reject/<cluster_id>` — HITL for confirmed cascades
+- `GET /api/log` — recent agent log entries (polled every 2s during a run)
+- `GET /api/db-status` — DB event counts, last modified time, size
+- `GET /health` — health check: model, db_events, db_exists
+- `POST /api/approve/<cluster_id>` / `POST /api/reject/<cluster_id>` — HITL for confirmed cascades (fires Slack on approve)
+- `GET /api/approval-status` — current approval decisions for last run's clusters
 - `POST /api/predict-approve/<dispatch_id>` / `POST /api/predict-reject/<dispatch_id>` — HITL for predicted dispatches
 - `GET /api/pending-dispatches` — proactive dispatches awaiting approval
+- `GET /api/heatmap` — pattern_memory corridor data as lat/lng/weight points for Leaflet.heat
+- `GET /api/vehicles?routes=511,501` — real-time TTC vehicle positions (Umoiq/NextBus)
+- `GET /api/geocode?address=...` — geocode free-text address to lat/lng within Toronto
+- `POST /api/submit-311` — accept a manually-submitted 311 ticket, run full pipeline, return predictions + SR number
 
 The dashboard has a system status strip (top of page) that polls `/api/status` every 30 seconds and shows last run time, next refresh countdown, cycle count, active briefs, and pending dispatches.
 

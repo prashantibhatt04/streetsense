@@ -15,6 +15,7 @@ The daemon mode is the intended production deployment mode for a government box:
 
 import argparse
 import logging
+import signal
 import sys
 import time
 from state.graph import run_pipeline
@@ -31,6 +32,13 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+_shutdown_requested = False
+
+
+def _request_shutdown(signum, frame):
+    global _shutdown_requested
+    _shutdown_requested = True
 
 
 def build_live_feed_fns() -> list:
@@ -84,31 +92,39 @@ def run_once(feed_fns: list) -> PipelineState:
 
 
 def run_daemon(feed_fns: list, interval: int) -> None:
+    global _shutdown_requested
+    _shutdown_requested = False
+    signal.signal(signal.SIGINT, _request_shutdown)
+    signal.signal(signal.SIGTERM, _request_shutdown)
     logger.info("Daemon started — polling every %ds. Press Ctrl-C to stop.", interval)
     logger.info("Dashboard: http://localhost:5001")
     run_count = 0
     _prev_brief_ids: set = set()
-    try:
-        while True:
-            run_count += 1
-            logger.info("--- Cycle #%d  %s ---", run_count,
-                        time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-            try:
-                state = run_once(feed_fns)
-                current_ids = {b.brief_id for b in state.briefs}
-                new_ids = current_ids - _prev_brief_ids
-                if new_ids:
-                    logger.info("*** %d NEW brief(s) this cycle ***", len(new_ids))
-                    for brief in state.briefs:
-                        if brief.brief_id in new_ids:
-                            logger.info("  NEW [SEV %d] %s", brief.severity_score, brief.headline)
-                _prev_brief_ids = current_ids
-                logger.info("Next run in %ds.", interval)
-            except Exception as e:
-                logger.error("Cycle failed: %s — retrying next interval", e)
-            time.sleep(interval)
-    except KeyboardInterrupt:
-        logger.info("Stopped after %d cycle(s). Goodbye.", run_count)
+    while not _shutdown_requested:
+        run_count += 1
+        logger.info("--- Cycle #%d  %s ---", run_count,
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        try:
+            state = run_once(feed_fns)
+            current_ids = {b.brief_id for b in state.briefs}
+            new_ids = current_ids - _prev_brief_ids
+            if new_ids:
+                logger.info("*** %d NEW brief(s) this cycle ***", len(new_ids))
+                for brief in state.briefs:
+                    if brief.brief_id in new_ids:
+                        logger.info("  NEW [SEV %d] %s", brief.severity_score, brief.headline)
+            _prev_brief_ids = current_ids
+            logger.info("Next run in %ds.", interval)
+        except KeyboardInterrupt:
+            _shutdown_requested = True
+        except Exception as e:
+            logger.error("Cycle failed: %s — retrying next interval", e)
+        if not _shutdown_requested:
+            for _ in range(interval):
+                if _shutdown_requested:
+                    break
+                time.sleep(1)
+    logger.info("Stopped after %d cycle(s). Goodbye.", run_count)
 
 
 def main() -> int:

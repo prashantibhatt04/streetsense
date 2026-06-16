@@ -261,6 +261,19 @@ def seed_pattern_memory() -> int:
         return 0
 
 
+def ensure_cluster_log_decision_columns(conn: sqlite3.Connection) -> None:
+    """
+    Add human_decision and decision_at columns to cluster_log if missing.
+    Safe to call repeatedly on an existing database.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(cluster_log)")}
+    if "human_decision" not in cols:
+        conn.execute("ALTER TABLE cluster_log ADD COLUMN human_decision TEXT")
+    if "decision_at" not in cols:
+        conn.execute("ALTER TABLE cluster_log ADD COLUMN decision_at TEXT")
+    conn.commit()
+
+
 def write_cluster_result(cluster_id: str, run_id: str, cascade_type: str,
                          severity_score: int, brief_headline: str,
                          brief_body: str) -> None:

@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -125,3 +126,119 @@ def test_live_summary_keys(client):
         data = json.loads(client.get("/api/state").data)
     for key in ("events_ingested","clusters_found","correlations","impacts","briefs_generated","errors"):
         assert key in data["summary"], f"Missing key: {key}"
+
+
+# ---------------------------------------------------------------------------
+# /health — provider-aware health check
+# ---------------------------------------------------------------------------
+
+def test_health_returns_200(client):
+    with patch("tools.llm_tools.active_provider_info",
+               return_value={"provider": "ollama", "model": "gemma4:latest"}), \
+         patch("tools.db_tools.db_event_counts",
+               return_value={"total": 5, "db_exists": True}):
+        resp = client.get("/health")
+    assert resp.status_code == 200
+
+
+def test_health_returns_provider_and_model(client):
+    with patch("tools.llm_tools.active_provider_info",
+               return_value={"provider": "ollama", "model": "gemma4:latest"}), \
+         patch("tools.db_tools.db_event_counts",
+               return_value={"total": 5, "db_exists": True}):
+        data = json.loads(client.get("/health").data)
+    assert data["status"] == "ok"
+    assert data["provider"] == "ollama"
+    assert data["model"] == "gemma4:latest"
+    assert data["db_events"] == 5
+    assert data["db_exists"] is True
+
+
+def test_health_reflects_claude_provider(client):
+    with patch("tools.llm_tools.active_provider_info",
+               return_value={"provider": "claude", "model": "claude-haiku-4-5-20251001"}), \
+         patch("tools.db_tools.db_event_counts",
+               return_value={"total": 0, "db_exists": False}):
+        data = json.loads(client.get("/health").data)
+    assert data["provider"] == "claude"
+    assert data["model"] == "claude-haiku-4-5-20251001"
+
+
+# ---------------------------------------------------------------------------
+# /api/approve and /api/reject — durable DB write
+# ---------------------------------------------------------------------------
+
+def _make_cluster_db(tmp_path: Path, cluster_id: str) -> Path:
+    """Create a minimal cluster_log DB with a single row (no decision columns yet)."""
+    db = tmp_path / "test.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute("""
+        CREATE TABLE cluster_log (
+            cluster_id TEXT PRIMARY KEY,
+            run_id TEXT,
+            cascade_type TEXT,
+            severity_score INTEGER,
+            brief_headline TEXT,
+            brief_body TEXT,
+            dispatch_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute(
+        "INSERT INTO cluster_log (cluster_id, run_id, cascade_type, severity_score) VALUES (?,?,?,?)",
+        (cluster_id, "run-001", "watermain_to_road_to_ttc", 7),
+    )
+    conn.commit()
+    conn.close()
+    return db
+
+
+def test_approve_writes_human_decision_to_db(client, tmp_path):
+    db = _make_cluster_db(tmp_path, "cluster-abc123")
+    with patch("dashboard.app.DB_PATH", db):
+        resp = client.post("/api/approve/cluster-abc123")
+    assert resp.status_code == 200
+    conn = sqlite3.connect(str(db))
+    row = conn.execute(
+        "SELECT human_decision, decision_at FROM cluster_log WHERE cluster_id=?",
+        ("cluster-abc123",),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] == "approved"
+    assert row[1] is not None
+
+
+def test_reject_writes_human_decision_to_db(client, tmp_path):
+    db = _make_cluster_db(tmp_path, "cluster-def456")
+    with patch("dashboard.app.DB_PATH", db):
+        resp = client.post("/api/reject/cluster-def456")
+    assert resp.status_code == 200
+    conn = sqlite3.connect(str(db))
+    row = conn.execute(
+        "SELECT human_decision, decision_at FROM cluster_log WHERE cluster_id=?",
+        ("cluster-def456",),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] == "rejected"
+    assert row[1] is not None
+
+
+def test_approve_missing_cluster_id_does_not_raise(client, tmp_path):
+    db = _make_cluster_db(tmp_path, "cluster-real")
+    with patch("dashboard.app.DB_PATH", db):
+        resp = client.post("/api/approve/cluster-nonexistent")
+    # UPDATE with no matching row is not an error — 200 with approved status
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["status"] == "approved"
+
+
+def test_reject_missing_cluster_id_does_not_raise(client, tmp_path):
+    db = _make_cluster_db(tmp_path, "cluster-real")
+    with patch("dashboard.app.DB_PATH", db):
+        resp = client.post("/api/reject/cluster-nonexistent")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["status"] == "rejected"

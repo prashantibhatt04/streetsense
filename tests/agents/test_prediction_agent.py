@@ -128,7 +128,8 @@ def test_prompt_no_route_hint_for_unknown_street():
 
 
 def test_prompt_uses_gtfs_routes_when_available():
-    # When GTFS returns routes, those appear in the prompt instead of keyword fallback
+    # GTFS routes are merged into the hint alongside any keyword matches.
+    # "Don Valley Parkway / Bayview Ave" has no keyword match, so only GTFS route 28 appears.
     gtfs_routes = [{"route_id": "28", "short_name": "28", "long_name": "Bayview", "route_type": "bus"}]
     event = make_event(address="Don Valley Parkway / Bayview Ave")
     with patch("agents.prediction_agent._gtfs_routes_near", return_value=gtfs_routes):

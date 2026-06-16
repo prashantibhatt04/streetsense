@@ -74,7 +74,7 @@ def heuristic_correlation(cluster: ClusterCandidate) -> CorrelationResult:
     has_road     = "road_closure" in types
     has_transit  = "transit_disruption" in types
     has_flooding = "flooding" in types
-    has_utility  = "utility_cut" in types
+    has_utility  = "utility_work" in types
 
     if has_watermain and has_road and has_transit:
         cascade_type  = "watermain_to_road_to_ttc"
@@ -94,7 +94,7 @@ def heuristic_correlation(cluster: ClusterCandidate) -> CorrelationResult:
         confidence    = 0.80
     elif has_utility and has_road:
         cascade_type  = "utility_to_road"
-        causal_chain  = ["utility_cut → road_closure"]
+        causal_chain  = ["utility_work → road_closure"]
         confidence    = 0.80
     else:
         return fallback_result(cluster.cluster_id, "No cascade pattern in event types")

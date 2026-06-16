@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/tools/test_llm_tools.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/agents/test_correlation_agent.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m evals.replay oct2024_bathurst)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/prashanti/Prashanti Projects/streetsense/evals/mock_data/malformed_feed.json'\\)\\); print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(/usr/local/bin/python3.14 -m evals.replay malformed_feed)",
+      "Bash(/usr/local/bin/python3.14 -m evals.replay july2024_flood)",
+      "Bash(/usr/local/bin/python3.14 -m json.tool dispatch_log.json)",
+      "Bash(python3 -m json.tool)",
+      "Bash(/usr/local/bin/python3.14 -m json.tool)",
+      "Bash(curl -s \"http://localhost:5001/api/replay-phase?scenario=queen_st_active&phase=0\")",
+      "Bash(curl -s \"http://localhost:5001/api/replay-phase?scenario=queen_st_active&phase=1\")",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/tools/test_db_tools.py tests/test_dashboard.py -v --tb=short)",
+      "Bash(pkill -f \"dashboard/app.py\")",
+      "Bash(/usr/local/bin/python3.14 dashboard/app.py)",
+      "Bash(curl -s -X POST \"http://localhost:5001/api/predict-approve/pred-311-2024-bathurst-prue-001-water_re-0\")",
+      "Bash(curl -s -X POST \"http://localhost:5001/api/predict-reject/pred-311-2024-bathurst-prue-001-ttc_dive-2\")",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/agents/test_prediction_agent.py tests/tools/test_dispatch_tools.py -v --tb=short)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5001/health)",
+      "Bash(/usr/local/bin/python3.14 main.py --mode db)",
+      "Bash(echo \"exit code: $?\")",
+      "Bash(/usr/local/bin/python3.14 main.py --mode db --hours 999999)",
+      "Bash(kill -TERM 4616 4624)",
+      "Bash(kill -9 4616 4624)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/test_main.py -v --tb=short)",
+      "Bash(/usr/local/bin/python3.14 -m pytest tests/test_dashboard.py -v --tb=short -k \"health\")",
+      "Bash(pkill -f \"python3.14 dashboard/app.py\")"
+    ]
+  }
+}

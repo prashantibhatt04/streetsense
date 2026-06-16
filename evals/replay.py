@@ -23,6 +23,11 @@ def load_scenario(name: str) -> list[UnifiedEvent]:
         print(f"Scenario not found: {path}")
         sys.exit(1)
     data = json.loads(path.read_text())
+    if "events" not in data:
+        print(f"'{name}' is not a replay scenario (no 'events' key).")
+        print("This fixture is used by evals/test_adversarial.py instead.")
+        print("Run: python3 -m pytest evals/test_adversarial.py -v -k malformed")
+        sys.exit(1)
     events = []
     for raw in data["events"]:
         try:

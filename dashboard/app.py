@@ -31,7 +31,10 @@ from ingestion.feeds.road_restrictions import fetch_road_restrictions
 from ingestion.feeds.ttc_alerts import fetch_ttc_alerts
 from ingestion.feeds.utility_cuts import fetch_utility_cuts
 from ingestion.feeds.requests_311 import fetch_311_requests
-from tools.db_tools import fetch_all_from_db, db_event_counts, write_cluster_result
+from tools.db_tools import (
+    fetch_all_from_db, db_event_counts, write_cluster_result,
+    ensure_cluster_log_decision_columns, DB_PATH,
+)
 from tools.external_tools import fetch_bikeshare_nearby, emit_slack_notification
 from ingestion.feeds.ttc_vehicles import fetch_vehicle_positions
 from config import STREET_COORDS
@@ -390,18 +393,18 @@ def api_approve(cluster_id: str):
             )
 
         # Write approval to cluster_log
-        from tools.db_tools import DB_PATH
         import sqlite3
         try:
             conn = sqlite3.connect(str(DB_PATH))
+            ensure_cluster_log_decision_columns(conn)
             conn.execute(
-                "UPDATE cluster_log SET human_approved=1 WHERE cluster_id=?",
-                (cluster_id,)
+                "UPDATE cluster_log SET human_decision='approved', decision_at=? WHERE cluster_id=?",
+                (approved_at, cluster_id),
             )
             conn.commit()
             conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("cluster_log approval write failed: %s", e)
 
         logger.info("Cluster %s APPROVED at %s (Slack: %s)", cluster_id, approved_at, slack_sent)
         return jsonify({
@@ -421,6 +424,20 @@ def api_reject(cluster_id: str):
     rejected_at = datetime.now(timezone.utc).isoformat()
     _approvals[cluster_id] = {"status": "rejected", "rejected_at": rejected_at}
     agent_log.append(f"REJECTED by supervisor — cluster {cluster_id[:12]} — no dispatch sent")
+
+    import sqlite3
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        ensure_cluster_log_decision_columns(conn)
+        conn.execute(
+            "UPDATE cluster_log SET human_decision='rejected', decision_at=? WHERE cluster_id=?",
+            (rejected_at, cluster_id),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.warning("cluster_log rejection write failed: %s", e)
+
     logger.info("Cluster %s REJECTED at %s", cluster_id, rejected_at)
     return jsonify({"status": "rejected", "cluster_id": cluster_id, "rejected_at": rejected_at})
 
@@ -525,10 +542,13 @@ def api_heatmap():
 def health():
     """Standard health check endpoint for deployment monitoring."""
     from tools.db_tools import db_event_counts
+    from tools.llm_tools import active_provider_info
     counts = db_event_counts()
+    provider_info = active_provider_info()
     return jsonify({
         "status": "ok",
-        "model": __import__("config").MODEL,
+        "provider": provider_info["provider"],
+        "model": provider_info["model"],
         "db_events": counts.get("total", 0),
         "db_exists": counts.get("db_exists", False),
     })
@@ -770,4 +790,9 @@ def api_submit_311():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s — %(message)s")
+    if DB_PATH.exists():
+        import sqlite3 as _sqlite3
+        _conn = _sqlite3.connect(str(DB_PATH))
+        ensure_cluster_log_decision_columns(_conn)
+        _conn.close()
     app.run(debug=True, port=5001)

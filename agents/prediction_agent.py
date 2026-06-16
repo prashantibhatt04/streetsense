@@ -57,21 +57,32 @@ def _is_night_route(short_name: str) -> bool:
 def _get_route_hint(event: UnifiedEvent) -> str:
     """
     Build the TTC route hint for the LLM prompt.
-    Uses GTFS spatial lookup when cache is available; falls back to keyword matching.
-    Night routes (300–399) are excluded — they run only overnight.
+    Keyword-based corridor matches (STREET_TO_ROUTES) always come first —
+    these capture the primary streetcar line on the street. GTFS spatial
+    lookup adds any additional nearby routes within radius. Night routes
+    (300-399) are excluded — they run only overnight.
     """
-    gtfs = _gtfs_routes_near(event.latitude, event.longitude)
-    if gtfs:
-        daytime = [r for r in gtfs if not _is_night_route(r["short_name"])]
-        if daytime:
-            return ", ".join(
-                f"route {r['short_name']} {r['long_name']} ({r['route_type']})"
-                for r in daytime
-            )
-        return "no known TTC route on this street"
     keyword = affected_routes_from_address(event.address)
-    if keyword:
-        return ", ".join(f"route {r['route']} ({r['type']})" for r in keyword)
+    gtfs = _gtfs_routes_near(event.latitude, event.longitude)
+
+    routes: list[str] = []
+    seen: set[str] = set()
+
+    for r in keyword:
+        if r["route"] not in seen:
+            routes.append(f"route {r['route']} ({r['type']})")
+            seen.add(r["route"])
+
+    if gtfs:
+        for r in gtfs:
+            if _is_night_route(r["short_name"]):
+                continue
+            if r["short_name"] not in seen:
+                routes.append(f"route {r['short_name']} {r['long_name']} ({r['route_type']})")
+                seen.add(r["short_name"])
+
+    if routes:
+        return ", ".join(routes)
     return "no known TTC route on this street"
 
 
@@ -124,8 +135,8 @@ Respond with this exact JSON (all fields required):
 }}"""
 
 
-def _make_dispatch_id(trigger_event_id: str, dispatch_type: str, index: int) -> str:
-    return f"pred-{trigger_event_id[:16]}-{dispatch_type[:8]}-{index}"
+def _make_dispatch_id(trigger_event_id: str, dispatch_type: str) -> str:
+    return f"pred-{trigger_event_id}-{dispatch_type}"
 
 
 def parse_llm_response(raw: dict, trigger_event_id: str) -> PredictedCascade | None:
@@ -135,7 +146,7 @@ def parse_llm_response(raw: dict, trigger_event_id: str) -> PredictedCascade | N
         confidence = max(0.0, min(1.0, confidence))
 
         dispatches = []
-        for i, d in enumerate(raw.get("recommended_dispatches") or []):
+        for d in (raw.get("recommended_dispatches") or []):
             dtype = d.get("dispatch_type", "notify_department")
             if dtype not in _VALID_DISPATCH_TYPES:
                 dtype = "notify_department"
@@ -143,7 +154,7 @@ def parse_llm_response(raw: dict, trigger_event_id: str) -> PredictedCascade | N
             if priority not in _VALID_PRIORITIES:
                 priority = "MEDIUM"
             dispatches.append(DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(trigger_event_id, dtype, i),
+                dispatch_id=_make_dispatch_id(trigger_event_id, dtype),
                 dispatch_type=dtype,
                 target_department=str(d.get("target_department", "City Operations")),
                 message=str(d.get("message", "")),
@@ -179,7 +190,7 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
         ]
         dispatches: list[DispatchRecommendation] = [
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "road_closure", 0),
+                dispatch_id=_make_dispatch_id(event.event_id, "road_closure"),
                 dispatch_type="road_closure",
                 target_department="Transportation Services / Police",
                 message=(
@@ -189,7 +200,7 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
                 priority="HIGH",
             ),
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "water_repair", 1),
+                dispatch_id=_make_dispatch_id(event.event_id, "water_repair"),
                 dispatch_type="water_repair",
                 target_department="Toronto Water — Stormwater Operations",
                 message=(
@@ -208,8 +219,8 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
         ]
         dispatches = [
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "notify_department", 0),
-                dispatch_type="notify_department",
+                dispatch_id=_make_dispatch_id(event.event_id, "water_repair"),
+                dispatch_type="water_repair",
                 target_department="Toronto Water — Wastewater Operations",
                 message=(
                     f"Sewer system overwhelmed at {location}. "
@@ -218,7 +229,7 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
                 priority="HIGH",
             ),
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "notify_department", 1),
+                dispatch_id=_make_dispatch_id(event.event_id, "notify_department"),
                 dispatch_type="notify_department",
                 target_department="Emergency Management",
                 message=(
@@ -235,14 +246,14 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
         ]
         dispatches = [
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "water_repair", 0),
+                dispatch_id=_make_dispatch_id(event.event_id, "water_repair"),
                 dispatch_type="water_repair",
                 target_department="Toronto Water",
                 message=f"Dispatch repair crew to {event.address} — possible watermain break reported",
                 priority="HIGH",
             ),
             DispatchRecommendation(
-                dispatch_id=_make_dispatch_id(event.event_id, "road_closure", 1),
+                dispatch_id=_make_dispatch_id(event.event_id, "road_closure"),
                 dispatch_type="road_closure",
                 target_department="Transportation Services",
                 message=f"Prepare traffic control for {location} — watermain repair likely requires lane closure",
@@ -251,13 +262,15 @@ def _heuristic_fallback(event: UnifiedEvent) -> PredictedCascade:
         ]
         ttc_reason = f"watermain break reported at {location}"
 
-    for r in all_routes:
-        impacts.append(f"TTC route {r['route']} ({r['type']}) at risk of diversion")
+    if all_routes:
+        route_list = ", ".join(f"route {r['route']} ({r['type']})" for r in all_routes)
+        for r in all_routes:
+            impacts.append(f"TTC route {r['route']} ({r['type']}) at risk of diversion")
         dispatches.append(DispatchRecommendation(
-            dispatch_id=_make_dispatch_id(event.event_id, "ttc_diversion", len(dispatches)),
+            dispatch_id=_make_dispatch_id(event.event_id, "ttc_diversion"),
             dispatch_type="ttc_diversion",
             target_department="TTC Operations",
-            message=f"Pre-emptively prepare diversion plan for route {r['route']} — {ttc_reason}",
+            message=f"Pre-emptively prepare diversion plan for {route_list} — {ttc_reason}",
             priority="MEDIUM",
         ))
 
