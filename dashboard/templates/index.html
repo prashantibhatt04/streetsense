@@ -181,6 +181,16 @@
   .approval-status.rejected{background:#ef444422;color:var(--red);border:1px solid var(--red);}
   .hitl-pending{font-size:10px;color:var(--amber);letter-spacing:0.06em;margin-top:4px;animation:pulse 2s infinite;}
 
+  /* ── Public communications panel ────────────────────────── */
+  .comms-panel{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;}
+  .comms-panel-label{font-family:var(--sans);font-size:9px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--green);margin-bottom:7px;}
+  .comms-section{background:var(--bg);border:1px solid var(--border);border-left:3px solid var(--blue);padding:7px 9px;margin-bottom:5px;}
+  .comms-section-label{display:flex;align-items:center;justify-content:space-between;font-family:var(--sans);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue);margin-bottom:4px;}
+  .comms-body{font-size:11px;color:var(--text);line-height:1.4;white-space:pre-wrap;word-break:break-word;}
+  .copy-btn{font-family:var(--mono);font-size:9px;letter-spacing:0.06em;text-transform:uppercase;padding:2px 7px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;transition:all 0.15s;flex-shrink:0;}
+  .copy-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .copy-btn.copied{border-color:var(--green);color:var(--green);}
+
   /* ── Phase replay bar ───────────────────────────────────── */
   .phase-bar{display:none;align-items:center;gap:16px;padding:8px 20px;background:#070d14;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
   .phase-bar.visible{display:flex;}
@@ -470,6 +480,7 @@ async function approveDispatch(clusterId) {
     // Log entry
     _logEntries.push({ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}), msg:`Supervisor APPROVED dispatch for ${clusterId.slice(0,12)}`});
     renderLog();
+    fetchComms(clusterId);
   } catch(e) {
     if (btn) btn.disabled = false;
     if (rejBtn) rejBtn.disabled = false;
@@ -500,6 +511,70 @@ async function rejectDispatch(clusterId) {
     if (btn) btn.disabled = false;
     if (rejBtn) rejBtn.disabled = false;
   }
+}
+
+// ============================================================
+// PUBLIC COMMUNICATIONS PANEL
+// ============================================================
+
+function _escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function _copyText(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    btn.textContent = 'Copied'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function _copyBtn(id) {
+  return `<button class="copy-btn" onclick="_copyText('${id}',this)">Copy</button>`;
+}
+
+function _commsSection(label, text, charCount) {
+  const id = 'ctext-' + Math.random().toString(36).slice(2,9);
+  const badge = charCount !== null ? ` <span style="color:var(--text-dim)">(${charCount} chars)</span>` : '';
+  return `<div class="comms-section">
+    <div class="comms-section-label">${_escHtml(label)}${badge} ${_copyBtn(id)}</div>
+    <div class="comms-body" id="${id}">${_escHtml(text)}</div>
+  </div>`;
+}
+
+function _renderCommsPanel(d) {
+  return `<div class="comms-panel-label">✓ COMMUNICATIONS READY</div>
+    ${_commsSection('📡 TTC SERVICE ALERT', d.ttc_alert, d.char_counts.ttc_alert)}
+    ${_commsSection('📧 WARD COUNCILLOR EMAIL', d.councillor_email, null)}
+    ${_commsSection('📱 SOCIAL POST', d.social_post, d.char_counts.social_post)}`;
+}
+
+async function fetchComms(clusterId) {
+  const panel = document.getElementById(`comms-panel-${clusterId}`);
+  if (!panel) return;
+  panel.style.display = 'block';
+  panel.innerHTML = '<div class="empty" style="color:var(--blue)">⟳ Generating public communications (~40s)…</div>';
+
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`/api/comms/${clusterId}`);
+      if (res.ok) {
+        const d = await res.json();
+        panel.innerHTML = _renderCommsPanel(d);
+        _logEntries.push({
+          ts: new Date().toLocaleTimeString('en-CA',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}),
+          msg: `Public comms ready: TTC alert (${d.char_counts.ttc_alert} chars), councillor email, social post`
+        });
+        renderLog();
+        return;
+      }
+      // 404 = not ready yet, keep polling
+    } catch(e) { /* network error — keep trying */ }
+  }
+  panel.innerHTML = '<div class="empty" style="color:var(--text-dim)">Communication drafts unavailable — please draft manually.</div>';
 }
 
 // ============================================================
@@ -980,6 +1055,7 @@ function renderData(data) {
       <div class="brief-body">${b.body}</div>
       <div class="brief-actions">${(b.actions||[]).map(a=>`<span class="action-tag">${a}</span>`).join('')}</div>
       ${risk}${hist}
+      <div id="comms-panel-${b.cluster_id}" class="comms-panel" style="display:none"></div>
     </div>`;
   }).join('') : '<div class="empty">No briefs generated</div>';
 

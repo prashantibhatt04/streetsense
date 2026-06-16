@@ -223,6 +223,7 @@ def _persist_results(state: PipelineState) -> None:
     from tools.dispatch_tools import get_pending_dispatches
     _status["pending_dispatches"] = len(get_pending_dispatches())
     _approvals.clear()               # new run = new approval decisions
+    _comms_drafts.clear()            # new run = new comms drafts
 
     corr_map = {c.cluster_id: c for c in state.correlations}
     for brief in state.briefs:
@@ -350,6 +351,7 @@ def api_state():
 # In production this would be a DB table with user identity + audit log
 # ---------------------------------------------------------------------------
 _approvals: dict[str, dict] = {}   # cluster_id → {status, approved_at, brief}
+_comms_drafts: dict = {}           # cluster_id → PublicCommunicationDraft (ephemeral)
 
 # Status tracker for /api/status
 _status: dict = {
@@ -400,6 +402,18 @@ def api_approve(cluster_id: str):
                 f"| Slack {'sent' if slack_sent else 'skipped (no webhook)'}"
             )
 
+            # Generate public communication drafts
+            from tools.comms_tools import generate_public_comms
+            routes = matching.get("affected_routes", [])
+            commuters = matching.get("estimated_commuters", 0)
+            draft = generate_public_comms(brief_obj, routes, commuters)
+            if draft:
+                _comms_drafts[cluster_id] = draft
+                agent_log.append(
+                    f"Public comms drafted: TTC alert ({len(draft.ttc_alert)} chars), "
+                    f"councillor email, social post"
+                )
+
         # Write approval to cluster_log
         import sqlite3
         try:
@@ -448,6 +462,25 @@ def api_reject(cluster_id: str):
 
     logger.info("Cluster %s REJECTED at %s", cluster_id, rejected_at)
     return jsonify({"status": "rejected", "cluster_id": cluster_id, "rejected_at": rejected_at})
+
+
+@app.route("/api/comms/<cluster_id>")
+def api_comms(cluster_id: str):
+    """Return the public communication drafts for an approved cluster."""
+    draft = _comms_drafts.get(cluster_id)
+    if not draft:
+        return jsonify({"error": "No comms draft found for this cluster"}), 404
+    return jsonify({
+        "cluster_id": cluster_id,
+        "ttc_alert": draft.ttc_alert,
+        "councillor_email": draft.councillor_email,
+        "social_post": draft.social_post,
+        "generated_at": draft.generated_at.isoformat(),
+        "char_counts": {
+            "ttc_alert": len(draft.ttc_alert),
+            "social_post": len(draft.social_post),
+        },
+    })
 
 
 @app.route("/api/predict-approve/<dispatch_id>", methods=["POST"])

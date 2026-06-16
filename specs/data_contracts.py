@@ -184,6 +184,16 @@ class DispatchPayload(BaseModel):
     requires_human_approval: bool = True
 
 
+class PublicCommunicationDraft(BaseModel):
+    cluster_id: str
+    generated_at: datetime
+    ttc_alert: str          # TTC service alert format, under 280 chars
+    councillor_email: str   # Ward councillor notification email body
+    social_post: str        # Twitter/X length, under 280 chars, no hashtags
+    approved_by_supervisor: bool = False
+    generated_for_severity: int = Field(ge=0, le=10)
+
+
 class WriteResult(BaseModel):
     success_count: int = Field(ge=0)
     failure_count: int = Field(ge=0)

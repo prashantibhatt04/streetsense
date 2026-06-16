@@ -242,3 +242,41 @@ def test_reject_missing_cluster_id_does_not_raise(client, tmp_path):
     assert resp.status_code == 200
     data = json.loads(resp.data)
     assert data["status"] == "rejected"
+
+
+# ---------------------------------------------------------------------------
+# /api/comms/<cluster_id> — public communication drafts
+# ---------------------------------------------------------------------------
+
+def test_comms_returns_404_when_no_draft(client):
+    with patch("dashboard.app._comms_drafts", {}):
+        resp = client.get("/api/comms/cluster-nonexistent")
+    assert resp.status_code == 404
+    data = json.loads(resp.data)
+    assert "error" in data
+
+
+def test_comms_returns_draft_fields_when_present(client):
+    from datetime import datetime, timezone
+    from specs.data_contracts import PublicCommunicationDraft
+
+    draft = PublicCommunicationDraft(
+        cluster_id="cluster-test-comms",
+        generated_at=datetime(2024, 10, 2, 13, 0, tzinfo=timezone.utc),
+        ttc_alert="511 Bathurst: Service disruption due to watermain break.",
+        councillor_email="A watermain break occurred. City departments are responding.",
+        social_post="Watermain break on Bathurst causing 511 delays. Use alternate routes.",
+        generated_for_severity=7,
+    )
+    with patch("dashboard.app._comms_drafts", {"cluster-test-comms": draft}):
+        resp = client.get("/api/comms/cluster-test-comms")
+    assert resp.status_code == 200
+    data = json.loads(resp.data)
+    assert data["cluster_id"] == "cluster-test-comms"
+    assert data["ttc_alert"] == draft.ttc_alert
+    assert data["councillor_email"] == draft.councillor_email
+    assert data["social_post"] == draft.social_post
+    assert "generated_at" in data
+    assert "char_counts" in data
+    assert data["char_counts"]["ttc_alert"] == len(draft.ttc_alert)
+    assert data["char_counts"]["social_post"] == len(draft.social_post)
