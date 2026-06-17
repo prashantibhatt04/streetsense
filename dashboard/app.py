@@ -406,13 +406,17 @@ def api_approve(cluster_id: str):
             from tools.comms_tools import generate_public_comms
             routes = matching.get("affected_routes", [])
             commuters = matching.get("estimated_commuters", 0)
-            draft = generate_public_comms(brief_obj, routes, commuters)
-            if draft:
-                _comms_drafts[cluster_id] = draft
-                agent_log.append(
-                    f"Public comms drafted: TTC alert ({len(draft.ttc_alert)} chars), "
-                    f"councillor email, social post"
-                )
+            ward = str(matching.get("metadata", {}).get("ward", "unknown")) if matching.get("metadata") else "unknown"
+            try:
+                draft = generate_public_comms(brief_obj, routes, commuters, ward=ward)
+                if draft:
+                    _comms_drafts[cluster_id] = draft
+                    agent_log.append(
+                        f"Public comms drafted: TTC alert ({len(draft.ttc_alert)} chars), "
+                        f"councillor email, social post"
+                    )
+            except Exception as e:
+                logger.warning("Comms generation failed: %s", e)
 
         # Write approval to cluster_log
         import sqlite3

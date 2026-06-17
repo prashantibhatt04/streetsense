@@ -42,7 +42,14 @@
       "Bash(/usr/local/bin/python3.14 -c \"import agents.prediction_agent; import agents.briefing_agent; print\\('ok'\\)\")",
       "Bash(/usr/local/bin/python3.14 -m pytest tests/tools/test_comms_tools.py -v --tb=short)",
       "Bash(/usr/local/bin/python3.14 -m pytest tests/tools/test_comms_tools.py tests/test_dashboard.py -v --tb=short)",
-      "Bash(wait)"
+      "Bash(wait)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(python3.14 -m json.tool)",
+      "Bash(python3.14 -c \"import json; d=json.load\\(open\\('/tmp/b.json'\\)\\); print\\(d['briefs'][0]['cluster_id']\\)\")",
+      "Bash(python3.14 -c \"import json; d=json.load\\(open\\('/tmp/b.json'\\)\\); print\\('Dispatch count:', len\\(d['dispatch']\\)\\); [print\\('dispatch cluster_id:', disp['payload'].get\\('cluster_id'\\)\\) for disp in d['dispatch']]\")",
+      "Bash(curl -s -X POST http://localhost:5001/api/approve/cluster-ff7c731d)",
+      "Bash(curl -s \"http://localhost:5001/api/comms/cluster-ff7c731d\")",
+      "Bash(kill 23901)"
     ]
   }
 }

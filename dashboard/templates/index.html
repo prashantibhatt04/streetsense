@@ -1041,6 +1041,20 @@ function renderData(data) {
     if (ri?.nearby_schools?.length) riParts.push(ri.nearby_schools.join(', '));
     if (ri?.is_peak_hours) riParts.push('Peak hours');
     const humanMeta = riParts.length ? `<div class="brief-meta human-impact-meta">${riParts.map(p=>`<span>${p}</span>`).join('')}</div>` : '';
+    const hasDispatch = (data.dispatch||[]).some(d => d.payload?.cluster_id === b.cluster_id);
+    const existingApproval = _approvalState[b.cluster_id];
+    const briefHitl = hasDispatch ? (
+      existingApproval === 'approved'
+        ? `<div class="approval-status approved" id="approval-status-${b.cluster_id}">✓ APPROVED</div>`
+        : existingApproval === 'rejected'
+        ? `<div class="approval-status rejected" id="approval-status-${b.cluster_id}">✗ REJECTED</div>`
+        : `<div class="hitl-row" style="margin-top:8px">
+             <button class="btn-approve" id="btn-approve-${b.cluster_id}" onclick="approveDispatch('${b.cluster_id}')">✓ Approve Dispatch</button>
+             <button class="btn-reject"  id="btn-reject-${b.cluster_id}"  onclick="rejectDispatch('${b.cluster_id}')">✗ Reject</button>
+           </div>
+           <div class="hitl-pending" id="hitl-pending-${b.cluster_id}">⚠ AWAITING SUPERVISOR APPROVAL</div>
+           <div class="approval-status" id="approval-status-${b.cluster_id}"></div>`
+    ) : '';
     return `<div class="brief-card sev-${sc}">
       <div class="brief-header">
         <span class="sev-badge ${sc}">SEV ${b.severity}/10</span>
@@ -1055,35 +1069,20 @@ function renderData(data) {
       <div class="brief-body">${b.body}</div>
       <div class="brief-actions">${(b.actions||[]).map(a=>`<span class="action-tag">${a}</span>`).join('')}</div>
       ${risk}${hist}
+      ${briefHitl}
       <div id="comms-panel-${b.cluster_id}" class="comms-panel" style="display:none"></div>
     </div>`;
   }).join('') : '<div class="empty">No briefs generated</div>';
 
-  // Dispatch + HITL approval
+  // Dispatch summary (approve/reject buttons live on the brief card above)
   const dc = document.getElementById('dispatch-content');
   if ((data.dispatch||[]).length) {
     dc.innerHTML = data.dispatch.map(d => {
-      const cid = d.payload?.cluster_id || '';
-      const existing = _approvalState[cid];
-      const statusHtml = existing === 'approved'
-        ? `<div class="approval-status approved">✓ APPROVED</div>`
-        : existing === 'rejected'
-        ? `<div class="approval-status rejected">✗ REJECTED</div>`
-        : `<div class="hitl-pending" id="hitl-pending-${cid}">⚠ AWAITING SUPERVISOR APPROVAL</div>`;
-      const btnsHtml = existing
-        ? ''
-        : `<div class="hitl-row">
-             <button class="btn-approve" id="btn-approve-${cid}" onclick="approveDispatch('${cid}')">✓ Approve Dispatch</button>
-             <button class="btn-reject"  id="btn-reject-${cid}"  onclick="rejectDispatch('${cid}')">✗ Reject</button>
-           </div>`;
       return `<div class="dispatch-card">
         <div class="dispatch-priority ${d.priority}">${d.priority.toUpperCase()} — ${d.action_type.replace(/_/g,' ')}</div>
         <div class="dispatch-dept">${d.target_department}</div>
         ${d.payload?.estimated_commuters ? `<div class="dispatch-commuters">${d.payload.estimated_commuters.toLocaleString()} commuters</div>` : ''}
-        <div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">${d.payload?.headline||''}</div>
-        ${statusHtml}
-        ${btnsHtml}
-        <div class="approval-status" id="approval-status-${cid}"></div>
+        <div style="font-size:10px;color:var(--text-dim)">${d.payload?.headline||''}</div>
       </div>`;
     }).join('');
   } else {
