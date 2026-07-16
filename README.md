@@ -4,7 +4,7 @@
 
 StreetSense monitors live feeds from Toronto's 311 system, road restrictions database, TTC alerts, and utility-cut permits. When a watermain breaks and the downstream road closure and streetcar diversion aren't linked in any city system, StreetSense detects the cascade, writes an operational brief, and routes it to a supervisor for one-click approval — before multiple departments start calling each other.
 
-![StreetSense communications panel showing an auto-drafted TTC service alert and a public-facing social post, both ready to send.](demo_assets/comms_autodraft.png)
+![Three side-by-side screenshots of Toronto's 311, Streets & Parking, and TTC Service Advisories websites, with caption: Three real Toronto systems. Same corridor. Same day. Zero communication.](demo_assets/opening_slide.png)
 
 ---
 
@@ -19,8 +19,7 @@ StreetSense monitors live feeds from Toronto's 311 system, road restrictions dat
 
 Once a dispatch is approved, StreetSense doesn't stop at an internal recommendation, it drafts the actual outbound comms:
 
-![StreetSense communications panel showing an auto-drafted TTC service alert and a public-facing social post, both ready to send.]
-(demo_assets/comms_autodraft.png)
+![StreetSense communications panel showing an auto-drafted TTC service alert and a public-facing social post, both ready to send.](demo_assets/comms_autodraft.png)
 
 ---
 
@@ -30,7 +29,7 @@ The primary demo scenario (`oct2024_bathurst`) replays a real October 2024 event
 
 By the final phase, the pipeline has scored the incident's severity and matched it against a real historical precedent:
 
-![StreetSense operational brief showing a SEV 7/10 severity score and a Historical Match callout referencing a real 2024-10-02 Bathurst incident.](demo_assets/severity_historical_match.png)
+![StreetSense operational brief showing a SEV 7/10 severity score and a Historical Match callout referencing a real 2024-10-02 Bathurst incident](demo_assets/severity_historical_match.png)
 
 ```bash
 # Start the dashboard
